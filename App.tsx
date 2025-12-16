@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import GameCanvas from './components/GameCanvas';
+import { GameCanvas } from './components/GameCanvas';
 import LevelEditor from './components/LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types';
-import { ADMIN_PASSWORD, SKINS, COLORS } from './constants';
-import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Trophy, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus } from 'lucide-react';
+import { ADMIN_PASSWORD, COLORS } from './constants';
+import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy } from 'lucide-react';
 import { db } from './firebase';
 import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+// expressions/emotes removed per user request
 
 // Start with empty levels
 const DEFAULT_LEVELS: LevelMetadata[] = [];
@@ -14,11 +15,31 @@ const App: React.FC = () => {
   // Screens
   const [gameState, setGameState] = useState<GameState>(GameState.LOGIN);
   
+  // Debug: log mount & state changes to help diagnose blank page
+  React.useEffect(() => {
+    console.log('App mounted');
+  }, []);
+  React.useEffect(() => {
+    console.log('GameState:', gameState);
+  }, [gameState]);
+  
   // Data
   const [user, setUser] = useState<User | null>(null);
   const [levels, setLevels] = useState<LevelMetadata[]>([]);
-  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
+    // show id next to name
+  
+    // Play attempt tracking
+    const [currentAttempt, setCurrentAttempt] = useState(0);
+    const [showAssignDifficulty, setShowAssignDifficulty] = useState(false);
+    const [assignLevelId, setAssignLevelId] = useState('');
+    const [assignDifficulty, setAssignDifficulty] = useState<LevelMetadata['difficulty']>('Unlisted');
+    const [showSettings, setShowSettings] = useState(false);
+  const [autoRespawn, setAutoRespawn] = useState<boolean>(() => {
+      const v = localStorage.getItem('nd_auto_respawn');
+      return v ? JSON.parse(v) : true;
+  });  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0); // Progress %
+  const [levelSearch, setLevelSearch] = useState("");
 
   // Login Form State
   const [isRegistering, setIsRegistering] = useState(false);
@@ -34,9 +55,11 @@ const App: React.FC = () => {
       try {
         const snap = await getDocs(collection(db, 'levels'));
         if (!snap.empty) {
-          const remoteLevels: LevelMetadata[] = snap.docs.map((d) => d.data() as LevelMetadata);
-          setLevels(remoteLevels);
-          localStorage.setItem('nd_levels', JSON.stringify(remoteLevels));
+                    const remoteLevels: LevelMetadata[] = snap.docs.map((d) => d.data() as LevelMetadata);
+                    // Ensure levelNumber exists for older entries
+                    const normalized = remoteLevels.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
+                    setLevels(normalized);
+                    localStorage.setItem('nd_levels', JSON.stringify(normalized));
           return;
         }
       } catch (err) {
@@ -44,8 +67,10 @@ const App: React.FC = () => {
       }
 
       const storedLevels = localStorage.getItem('nd_levels');
-      if (storedLevels) {
-        setLevels(JSON.parse(storedLevels));
+            if (storedLevels) {
+                const parsed = JSON.parse(storedLevels) as LevelMetadata[];
+                const normalized = parsed.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
+                setLevels(normalized);
       } else {
         setLevels(DEFAULT_LEVELS);
         localStorage.setItem('nd_levels', JSON.stringify(DEFAULT_LEVELS));
@@ -54,6 +79,8 @@ const App: React.FC = () => {
 
     loadLevels();
   }, []);
+
+    // nothing here (hard list removed)
 
   // Load Users DB from Firestore into localStorage (for existing helper usage)
   useEffect(() => {
@@ -108,6 +135,8 @@ const App: React.FC = () => {
       })();
   };
 
+  // expressions removed: purchase/equip handlers deleted
+
   // Initialize Default Admin (dgoa) if not exists
   useEffect(() => {
       const usersDb = getUsersDB();
@@ -120,7 +149,7 @@ const App: React.FC = () => {
               totalStars: 0, // Reset to 0 stars
               completedLevels: [],
               likedLevels: [],
-              selectedColor: '#00f0ff'
+              selectedColor: COLORS.admin
           };
           usersDb.push(defaultAdmin);
           localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
@@ -176,14 +205,14 @@ const App: React.FC = () => {
              return;
          }
 
-         const newUser: User = {
+            const newUser: User = {
             name: name,
             password: pass,
             isAdmin: false,
             totalStars: 0,
             completedLevels: [],
             likedLevels: [],
-            selectedColor: COLORS.player
+                selectedColor: COLORS.admin
          };
          
          saveUserFull(newUser);
@@ -236,23 +265,26 @@ const App: React.FC = () => {
       setLoginError("");
   };
 
-  const handleSkinSelect = (color: string) => {
-     if (!user) return;
-     const updatedUser = { ...user, selectedColor: color };
-     saveUserFull(updatedUser);
-  };
+  // skins/colors removed: all players use the single admin color
 
   const saveLevel = (data: LevelData, name: string) => {
-     const newLevel: LevelMetadata = {
-       id: Date.now().toString(),
-       name: name,
-       author: user?.name || 'Anon',
-       difficulty: 'Unlisted',
-       stars: 0,
-       data: data,
-       plays: 0,
-       likes: 0
-     };
+         // determine next levelNumber
+         const dbLevels = localStorage.getItem('nd_levels');
+         const existingLevels: LevelMetadata[] = dbLevels ? JSON.parse(dbLevels) : levels;
+         const maxNum = existingLevels.reduce((m, l) => Math.max(m, l.levelNumber || 0), 0);
+         const newLevelNumber = maxNum + 1;
+
+         const newLevel: LevelMetadata = {
+             id: Date.now().toString(),
+             levelNumber: newLevelNumber,
+             name: name,
+             author: user?.name || 'Anon',
+             difficulty: 'Unlisted',
+             stars: 0,
+             data: data,
+             plays: 0,
+             likes: 0
+         };
      
      const currentStoredLevels = localStorage.getItem('nd_levels');
      const currentLevels = currentStoredLevels ? JSON.parse(currentStoredLevels) : levels;
@@ -275,7 +307,7 @@ const App: React.FC = () => {
   const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty']) => {
       if (!user?.isAdmin) return;
       
-      const starsMap = { 'Unlisted': 0, 'Easy': 2, 'Normal': 4, 'Hard': 6, 'Insane': 8 };
+    const starsMap = { 'Unlisted': 0, 'Easy': 2, 'Normal': 4, 'Hard': 6, 'Insane': 8, 'Extreme': 12 };
       
       const updatedLevels = levels.map(l => {
           if (l.id === levelId) {
@@ -297,10 +329,17 @@ const App: React.FC = () => {
           }
         })();
       }
+            // Removed: Award the admin who changed the difficulty stars
   };
 
   const handleLevelComplete = () => {
-      if (!currentLevel || !user) return;
+      if (!currentLevel) return;
+      
+      // Eğer kullanıcı yoksa (teorik olarak olmamalı), sadece ekranı göster
+      if (!user) {
+        setGameState(GameState.GAME_OVER);
+        return;
+      }
       
       const db = getUsersDB();
       const freshUser = db.find(u => u.name === user.name) || user;
@@ -349,16 +388,18 @@ const App: React.FC = () => {
 
       setCurrentLevel(level);
       setScore(0);
+      // Start attempt counter at 1 when starting a level
+      setCurrentAttempt(1);
       setGameState(GameState.PLAYING);
   }
 
   const handleLikeLevel = (levelId: string) => {
       if (!user) return;
       const isLiked = user.likedLevels?.includes(levelId);
-      
+
       const updatedUser = {
           ...user,
-          likedLevels: isLiked 
+          likedLevels: isLiked
             ? user.likedLevels.filter(id => id !== levelId)
             : [...(user.likedLevels || []), levelId]
       };
@@ -385,6 +426,67 @@ const App: React.FC = () => {
         })();
       }
   }
+
+
+  // --- Helpers for character customization ---
+  const colorOptions = [
+    // 0 yıldız
+    { id: 'blue', label: 'Mavi', color: '#00f0ff', cost: 0 },
+    { id: 'yellow', label: 'Sarı', color: '#facc15', cost: 0 },
+    { id: 'red', label: 'Kırmızı', color: '#ef4444', cost: 0 },
+    // 10 yıldız
+    { id: 'green', label: 'Yeşil', color: '#22c55e', cost: 10 },
+    { id: 'orange', label: 'Turuncu', color: '#f97316', cost: 10 },
+    { id: 'pink', label: 'Pembe', color: '#ec4899', cost: 10 },
+    // 30 yıldız
+    { id: 'white', label: 'Beyaz', color: '#ffffff', cost: 30 },
+    { id: 'black', label: 'Siyah', color: '#000000', cost: 30 },
+    { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30 },
+    // 60 yıldız
+    { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60 },
+  ];
+
+  const faceOptions = [
+    { id: 'default', label: 'Klasik', cost: 0 },
+    { id: 'happy', label: 'Mutlu', cost: 0 },
+    { id: 'angry', label: 'Sinirli', cost: 10 },
+    { id: 'surprised', label: 'Şaşkın', cost: 15 },
+    { id: 'cool', label: 'Havalı', cost: 50 },
+    { id: 'admin', label: 'Admin', cost: 0, adminOnly: true },
+  ];
+
+  const handleSelectColor = (colorHex: string, cost: number) => {
+    if (!user) return;
+    if ((user.totalStars || 0) < cost) {
+      alert(`${cost} yıldız gerekiyor!`);
+      return;
+    }
+    const updatedUser: User = {
+      ...user,
+      selectedColor: colorHex,
+    };
+    saveUserFull(updatedUser);
+  };
+
+  const handleSelectFace = (faceId: string, cost: number, adminOnly?: boolean) => {
+    if (!user) return;
+    if (adminOnly && !user.isAdmin) {
+      alert('Bu yüz sadece admin için!');
+      return;
+    }
+    if ((user.totalStars || 0) < cost) {
+      alert(`${cost} yıldız gerekiyor!`);
+      return;
+    }
+    const updatedUser: User = {
+      ...user,
+      selectedFace: faceId,
+    };
+    saveUserFull(updatedUser);
+  };
+
+  // Precompute leaderboard data (sorted by totalStars desc)
+  const leaderboardDb = getUsersDB().slice().sort((a, b) => b.totalStars - a.totalStars);
 
   // --- RENDERERS ---
 
@@ -468,6 +570,42 @@ const App: React.FC = () => {
                       </div>
                    </div>
                )}
+
+                {showAssignDifficulty && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60" onClick={() => setShowAssignDifficulty(false)} />
+                        <div className="bg-slate-800 p-6 rounded-lg z-10 w-[520px] max-w-full border border-slate-700">
+                            <h3 className="text-2xl font-bold mb-4">Zorluk Ata (ID ile)</h3>
+                            <div className="mb-4">
+                                <label className="text-sm text-slate-400">Bölüm ID (numara)</label>
+                                <input value={assignLevelId} onChange={(e) => setAssignLevelId(e.target.value)} placeholder="Örn: 12" className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" />
+                                <div className="text-xs text-slate-400 mt-1">ID'yi girin ve hangi zorluğu atamak istediğinizi seçin.</div>
+                            </div>
+                            <div className="mb-4">
+                                <label className="text-sm text-slate-400">Zorluk</label>
+                                <select className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" value={assignDifficulty} onChange={(e) => setAssignDifficulty(e.target.value as any)}>
+                                    <option value="Unlisted">Unlisted</option>
+                                    <option value="Easy">Easy</option>
+                                    <option value="Normal">Normal</option>
+                                    <option value="Hard">Hard</option>
+                                    <option value="Insane">Insane</option>
+                                    <option value="Extreme">Extreme</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                                <button onClick={() => setShowAssignDifficulty(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Vazgeç</button>
+                                <button onClick={() => {
+                                    const n = Number(assignLevelId);
+                                    if (!n || isNaN(n)) { alert('Geçerli bir ID girin'); return; }
+                                    const found = levels.find(l => l.levelNumber === n);
+                                    if (!found) { alert('ID ile eşleşen bölüm yok'); return; }
+                                    updateDifficulty(found.id, assignDifficulty);
+                                    setShowAssignDifficulty(false);
+                                }} className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-white">Uygula</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
       );
@@ -486,15 +624,35 @@ const App: React.FC = () => {
                         <Star size={12} fill="currentColor"/> {user?.totalStars} Stars
                     </div>
                 </div>
+                <button onClick={() => setShowSettings(true)} className="bg-slate-800/50 p-2 rounded hover:bg-slate-700 text-xs">Ayarlar</button>
                 <button onClick={handleLogout} className="bg-red-900/50 p-2 rounded hover:bg-red-900 text-xs">Çıkış</button>
              </div>
+
+             {showSettings && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/60" onClick={() => setShowSettings(false)} />
+                    <div className="bg-slate-800 p-6 rounded-lg z-10 w-[420px] max-w-full border border-slate-700">
+                        <h3 className="text-2xl font-bold mb-4">Ayarlar</h3>
+                        <div className="mb-4">
+                            <label className="flex items-center gap-2">
+                                <input type="checkbox" checked={autoRespawn} onChange={(e) => { setAutoRespawn(e.target.checked); localStorage.setItem('nd_auto_respawn', JSON.stringify(e.target.checked)); }} />
+                                <span className="text-sm">Otomatik yeniden doğma (ölünce anında yeniden doğ)</span>
+                            </label>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <button onClick={() => setShowSettings(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Kapat</button>
+                        </div>
+                    </div>
+                </div>
+             )}
+
 
              <h1 className="text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-12 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] font-orbitron transform -skew-x-6">
                 CUBE DASH
              </h1>
 
              <div className="flex gap-8">
-                 <button 
+                 <button
                     onClick={() => setGameState(GameState.CHARACTER_SELECT)}
                     className="group w-40 h-40 bg-slate-800 border-2 border-slate-600 hover:border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(34,211,238,0.2)]"
                  >
@@ -502,7 +660,8 @@ const App: React.FC = () => {
                     <span className="font-bold font-orbitron text-lg">KARAKTER</span>
                  </button>
 
-                 <button 
+
+                 <button
                     onClick={() => setGameState(GameState.LEVEL_SELECT)}
                     className="group w-40 h-40 bg-cyan-600 hover:bg-cyan-500 border-2 border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]"
                  >
@@ -510,75 +669,210 @@ const App: React.FC = () => {
                     <span className="font-bold font-orbitron text-lg text-black">OYNA</span>
                  </button>
 
-                 <button 
+                 <button
                     onClick={() => setGameState(GameState.LEADERBOARD)}
                     className="group w-40 h-40 bg-purple-900 border-2 border-purple-700 hover:border-purple-500 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)]"
                  >
                     <Globe size={48} className="text-purple-300 group-hover:text-white" />
                     <span className="font-bold font-orbitron text-lg">TOP 50</span>
                  </button>
+                     {/* EN ZOR 10 removed from main menu */}
+             </div>
+
+             <div className="mt-8 text-center text-slate-500 text-sm">
+               Versiyon: 1.1
              </div>
           </div>
       );
-  }
+  } else if (gameState === GameState.CHARACTER_SELECT) {
+      const currentColor = user?.selectedColor || COLORS.admin;
+      const currentFace = user?.selectedFace || 'default';
+      const stars = user?.totalStars || 0;
 
-  if (gameState === GameState.CHARACTER_SELECT) {
       return (
-          <div className="min-h-screen bg-slate-900 text-white p-8 flex flex-col items-center">
-              <div className="w-full max-w-4xl">
-                <div className="flex items-center justify-between mb-8">
-                    <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={32}/></button>
-                    <h2 className="text-3xl font-orbitron font-bold text-cyan-400">KARAKTER SEÇİMİ</h2>
-                    <div className="w-10"></div>
+        <div className="min-h-screen bg-slate-900 text-white p-8 flex flex-col items-center justify-center">
+          <div className="w-full max-w-3xl">
+            <button
+              onClick={() => setGameState(GameState.MENU)}
+              className="mb-6 p-2 hover:bg-slate-800 rounded-full"
+            >
+              <ChevronLeft size={32} />
+            </button>
+            <h2 className="text-3xl font-orbitron font-bold text-cyan-400 mb-4 text-center">
+              KARAKTER
+            </h2>
+
+            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+              <div className="flex flex-col items-center gap-6">
+                {/* Ortadaki karakter önizlemesi */}
+                <div className="flex flex-col items-center gap-2">
+                  <div
+                    className="w-32 h-32 rounded-2xl border-4 border-black shadow-xl relative overflow-hidden"
+                    style={{ backgroundColor: currentColor }}
+                  >
+                    <canvas
+                      ref={(canvas) => {
+                        if (canvas) {
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            ctx.clearRect(0, 0, 128, 128);
+                            ctx.save();
+                            ctx.translate(64, 64);
+                            ctx.scale(4, 4); // Scale up for better visibility
+                            ctx.fillStyle = '#000';
+                            if (currentFace === 'happy') {
+                              ctx.fillRect(-7, -7, 5, 5);
+                              ctx.fillRect(2, -7, 5, 5);
+                              ctx.beginPath();
+                              ctx.arc(0, 3, 7, 0, Math.PI);
+                              ctx.stroke();
+                            } else if (currentFace === 'angry') {
+                              ctx.fillRect(-7, -7, 5, 5);
+                              ctx.fillRect(2, -7, 5, 5);
+                              ctx.beginPath();
+                              ctx.moveTo(-7, -11);
+                              ctx.lineTo(-2, -9);
+                              ctx.moveTo(7, -11);
+                              ctx.lineTo(2, -9);
+                              ctx.stroke();
+                              ctx.fillRect(-7, 4, 14, 2);
+                            } else if (currentFace === 'surprised') {
+                              ctx.fillRect(-7, -7, 4, 6);
+                              ctx.fillRect(3, -7, 4, 6);
+                              ctx.beginPath();
+                              ctx.arc(0, 4, 4, 0, Math.PI * 2);
+                              ctx.stroke();
+                            } else if (currentFace === 'cool') {
+                              ctx.fillRect(-9, -5, 7, 4);
+                              ctx.fillRect(2, -5, 7, 4);
+                              ctx.fillRect(-2, -4, 4, 1);
+                              ctx.beginPath();
+                              ctx.arc(0, 5, 6, 0, Math.PI);
+                              ctx.stroke();
+                            } else if (currentFace === 'admin') {
+                              ctx.beginPath();
+                              ctx.moveTo(-7, -5);
+                              ctx.lineTo(-4, -9);
+                              ctx.lineTo(-1, -5);
+                              ctx.closePath();
+                              ctx.fill();
+                              ctx.beginPath();
+                              ctx.moveTo(1, -5);
+                              ctx.lineTo(4, -9);
+                              ctx.lineTo(7, -5);
+                              ctx.closePath();
+                              ctx.fill();
+                              ctx.beginPath();
+                              ctx.arc(0, 5, 7, 0, Math.PI);
+                              ctx.stroke();
+                            } else {
+                              ctx.fillRect(-7, -7, 5, 5);
+                              ctx.fillRect(2, -7, 5, 5);
+                              ctx.fillRect(-5, 4, 10, 2);
+                            }
+                            ctx.restore();
+                          }
+                        }
+                      }}
+                      width={128}
+                      height={128}
+                      className="w-full h-full"
+                    />
+                  </div>
+                  <div className="text-sm text-slate-300">
+                    Toplam yıldızın: <span className="text-yellow-300 font-bold">{stars}</span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {SKINS.map(skin => {
-                        const isLocked = (user?.totalStars || 0) < skin.starsRequired;
-                        const isSelected = user?.selectedColor === skin.color;
+                {/* Üstte yüzler */}
+                <div className="w-full">
+                  <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-2">
+                    Yüzler
+                  </h3>
+                  <div className="flex flex-wrap gap-3 justify-center">
+                    {faceOptions.map(face => {
+                      const lockedByAdmin = face.adminOnly && !user?.isAdmin;
+                      const lockedByStars = !lockedByAdmin && stars < face.cost;
+                      const isLocked = lockedByAdmin || lockedByStars;
+                      const isSelected = currentFace === face.id;
 
-                        return (
-                            <button
-                                key={skin.id}
-                                disabled={isLocked}
-                                onClick={() => handleSkinSelect(skin.color)}
-                                className={`
-                                    relative aspect-square rounded-xl border-4 flex flex-col items-center justify-center gap-2 transition-all
-                                    ${isSelected ? 'border-white bg-slate-700 scale-105 shadow-xl' : 'border-slate-700 bg-slate-800'}
-                                    ${isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:border-slate-500 cursor-pointer'}
-                                `}
-                            >
-                                {isLocked ? (
-                                    <>
-                                        <Lock size={32} className="text-slate-500"/>
-                                        <div className="flex items-center gap-1 text-xs text-yellow-500 font-bold">
-                                            {skin.starsRequired} <Star size={10} fill="currentColor"/>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div 
-                                            className="w-10 h-10 border-2 border-black" 
-                                            style={{backgroundColor: skin.color}}
-                                        >
-                                            <div className="w-2 h-2 bg-black absolute top-2 right-2"></div> {/* Eye */}
-                                        </div>
-                                        <span className="font-bold text-sm font-orbitron">{skin.name}</span>
-                                    </>
-                                )}
-                            </button>
-                        )
+                      return (
+                        <button
+                          key={face.id}
+                          onClick={() => handleSelectFace(face.id, face.cost, face.adminOnly)}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold flex flex-col items-center min-w-[90px] border
+                            ${isSelected ? 'bg-cyan-600 border-cyan-400' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}
+                            ${isLocked ? 'opacity-60' : ''}`}
+                        >
+                          <span className="mb-1 flex items-center gap-1">
+                            {face.adminOnly && <ShieldAlert size={12} className="text-pink-400" />}
+                            {face.label}
+                          </span>
+                          {isLocked ? (
+                            <span className="flex items-center gap-1 text-[10px] text-yellow-300">
+                              <Lock size={10} /> {face.cost}⭐
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-300">
+                              {face.cost === 0 ? 'Ücretsiz' : `${face.cost}⭐`}
+                            </span>
+                          )}
+                        </button>
+                      );
                     })}
+                  </div>
                 </div>
+
+                {/* Altta renkler */}
+                <div className="w-full">
+                  <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-2">
+                    Renkler
+                  </h3>
+                  <div className="flex flex-wrap gap-3 justify-center">
+                    {colorOptions.map(opt => {
+                      const isSelected = currentColor.toLowerCase() === opt.color.toLowerCase();
+                      const locked = stars < opt.cost;
+
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => handleSelectColor(opt.color, opt.cost)}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-lg border min-w-[70px]
+                            ${isSelected ? 'border-cyan-400 bg-slate-700' : 'border-slate-600 bg-slate-800 hover:bg-slate-700'}
+                            ${locked ? 'opacity-60' : ''}`}
+                        >
+                          <div
+                            className="w-8 h-8 rounded border border-black"
+                            style={{ backgroundColor: opt.color }}
+                          />
+                          <span className="text-[11px] font-bold">{opt.label}</span>
+                          {locked ? (
+                            <span className="flex items-center gap-1 text-[10px] text-yellow-300">
+                              <Lock size={10} /> {opt.cost}⭐
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-300">
+                              {opt.cost === 0 ? 'Ücretsiz' : `${opt.cost}⭐`}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setGameState(GameState.MENU)}
+                  className="mt-4 px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-full font-bold font-orbitron"
+                >
+                  Geri
+                </button>
               </div>
+            </div>
           </div>
-      )
-  }
-
-  if (gameState === GameState.LEADERBOARD) {
-      const db = getUsersDB();
-      db.sort((a, b) => b.totalStars - a.totalStars);
-
+        </div>
+      );
+  } else if (gameState === GameState.LEADERBOARD) {
       return (
           <div className="min-h-screen bg-slate-900 text-white p-8 flex flex-col items-center">
              <div className="w-full max-w-2xl">
@@ -589,14 +883,79 @@ const App: React.FC = () => {
                  </div>
 
                  <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                     {db.length === 0 && (
+                 {leaderboardDb.length === 0 && (
                          <div className="p-8 text-center text-slate-500">Henüz kimse sıralamaya girmedi.</div>
                      )}
-                     {db.map((entry, idx) => (
+                     {leaderboardDb.map((entry, idx) => (
                          <div key={idx} className={`flex items-center justify-between p-4 border-b border-slate-700 ${entry.name === user?.name ? 'bg-purple-900/30' : ''}`}>
                              <div className="flex items-center gap-4">
                                  <div className="font-black text-2xl w-8 text-slate-500 italic">#{idx + 1}</div>
-                                 <div className="w-8 h-8 border border-black" style={{backgroundColor: entry.selectedColor}}></div>
+                                <div className="flex flex-col items-center">
+                                     <div className="w-8 h-8 border border-black relative overflow-hidden" style={{backgroundColor: entry.selectedColor || COLORS.admin}}>
+                                       <canvas
+                                         ref={(canvas) => {
+                                           if (canvas) {
+                                             const ctx = canvas.getContext('2d');
+                                             if (ctx) {
+                                               ctx.clearRect(0, 0, 32, 32);
+                                               ctx.save();
+                                               ctx.translate(16, 16);
+                                               ctx.scale(1, 1);
+                                               ctx.fillStyle = '#000';
+                                               const face = entry.selectedFace || 'default';
+                                               if (face === 'happy') {
+                                                 ctx.fillRect(-3, -3, 2, 2);
+                                                 ctx.fillRect(1, -3, 2, 2);
+                                                 ctx.beginPath();
+                                                 ctx.arc(0, 1, 3, 0, Math.PI);
+                                                 ctx.stroke();
+                                               } else if (face === 'angry') {
+                                                 ctx.fillRect(-3, -3, 2, 2);
+                                                 ctx.fillRect(1, -3, 2, 2);
+                                                 ctx.beginPath();
+                                                 ctx.moveTo(-3, -5);
+                                                 ctx.lineTo(-1, -4);
+                                                 ctx.moveTo(3, -5);
+                                                 ctx.lineTo(1, -4);
+                                                 ctx.stroke();
+                                                 ctx.fillRect(-3, 2, 6, 1);
+                                               } else if (face === 'surprised') {
+                                                 ctx.fillRect(-3, -3, 2, 3);
+                                                 ctx.fillRect(1, -3, 2, 3);
+                                                 ctx.beginPath();
+                                                 ctx.arc(0, 2, 2, 0, Math.PI * 2);
+                                                 ctx.stroke();
+                                               } else if (face === 'cool') {
+                                                 ctx.fillRect(-4, -2, 3, 2);
+                                                 ctx.fillRect(1, -2, 3, 2);
+                                                 ctx.fillRect(-1, -2, 2, 1);
+                                                 ctx.beginPath();
+                                                 ctx.arc(0, 2, 3, 0, Math.PI);
+                                                 ctx.stroke();
+                                               } else if (face === 'admin') {
+                                                 // Cute smiling cube for preview
+                                                 // Little eyes
+                                                 ctx.fillRect(-2, -2, 1, 1);
+                                                 ctx.fillRect(1, -2, 1, 1);
+                                                 // Tiny smiling mouth
+                                                 ctx.beginPath();
+                                                 ctx.arc(0, 1, 1, 0, Math.PI);
+                                                 ctx.stroke();
+                                               } else {
+                                                 ctx.fillRect(-3, -3, 2, 2);
+                                                 ctx.fillRect(1, -3, 2, 2);
+                                                 ctx.fillRect(-2, 2, 4, 1);
+                                               }
+                                               ctx.restore();
+                                             }
+                                           }
+                                         }}
+                                         width={32}
+                                         height={32}
+                                         className="w-full h-full"
+                                       />
+                                     </div>
+                                 </div>
                                  <div className="font-bold text-lg">
                                      {entry.name}
                                      {entry.name === 'dgoa' && <ShieldAlert size={14} className="inline ml-2 text-pink-500"/>}
@@ -630,21 +989,52 @@ const App: React.FC = () => {
                     >
                         <PenTool size={20}/> BÖLÜM OLUŞTUR
                     </button>
+                    {user?.isAdmin && (
+                        <>
+                        <button onClick={() => { setShowAssignDifficulty(true); setAssignLevelId(''); setAssignDifficulty('Unlisted'); }} className="flex items-center gap-2 bg-yellow-700 px-4 py-3 rounded-lg font-bold hover:bg-yellow-600 hover:scale-105 transition shadow-lg">
+                            <ShieldAlert size={18}/> ZORLUK ATA
+                        </button>
+                        </>
+                    )}
                  </div>
 
-                 <div className="grid gap-4">
+                 {/* Arama çubuğu */}
+                 <div className="mb-4 flex justify-center">
+                    <input
+                       value={levelSearch}
+                       onChange={(e) => setLevelSearch(e.target.value)}
+                       placeholder="Bölüm adı veya yazar ara..."
+                       className="w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-400"
+                    />
+                 </div>
+
+                 {/* Admin-only hard list panel intentionally hidden from Level Select; open via the EN ZOR 10 button */}
+
+                 <div className="grid gap-4 max-h-[480px] overflow-y-auto pr-1">
                      {levels.length === 0 && (
                          <div className="text-center text-slate-500 py-20">
                              Henüz yayınlanmış bir bölüm yok. İlk bölümü sen yap!
                          </div>
                      )}
-                     {levels.map((level) => {
+                     {levels
+                                                .filter(level => {
+                                                        if (!levelSearch.trim()) return true;
+                                                        const q = levelSearch.toLowerCase();
+                                                        // search by name, author or levelNumber (id)
+                                                        return (
+                                                            level.name.toLowerCase().includes(q) ||
+                                                            level.author.toLowerCase().includes(q) ||
+                                                            String(level.levelNumber).includes(q)
+                                                        );
+                                                })
+                        .map((level) => {
                          const difficultyColors: Record<string, string> = {
                              'Unlisted': 'text-slate-500',
                              'Easy': 'text-green-400',
                              'Normal': 'text-yellow-400',
                              'Hard': 'text-red-400',
-                             'Insane': 'text-purple-500'
+                             'Insane': 'text-purple-500',
+                             'Extreme': 'text-pink-500'
                          };
                          
                          const isCompleted = user?.completedLevels.includes(level.id);
@@ -654,7 +1044,10 @@ const App: React.FC = () => {
                              <div key={level.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:border-slate-500 transition group">
                                  <div>
                                      <div className="flex items-center gap-3">
-                                        <h3 className="text-xl font-bold font-orbitron">{level.name}</h3>
+                                        <h3 className="text-xl font-bold font-orbitron">{level.name} <span className="text-xs text-slate-400 font-mono ml-2">#{level.levelNumber}</span></h3>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {/* Removed background and ground color previews */}
+                                        </div>
                                         {isCompleted && (
                                             <div className="text-green-500 text-xs border border-green-500 px-2 py-0.5 rounded font-bold flex items-center gap-1">
                                                 <CheckCircle size={10}/> TAMAMLANDI
@@ -664,7 +1057,7 @@ const App: React.FC = () => {
                                      <p className="text-sm text-slate-400">by {level.author}</p>
                                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
                                          <span className="flex items-center gap-1"><Eye size={12}/> {level.plays || 0}</span>
-                                         <button 
+                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleLikeLevel(level.id); }}
                                             className={`flex items-center gap-1 hover:text-pink-400 ${isLiked ? 'text-pink-500 font-bold' : ''}`}
                                          >
@@ -674,7 +1067,7 @@ const App: React.FC = () => {
                                  </div>
                                  
                                  <div className="flex items-center gap-6">
-                                     <div className="text-center min-w-[80px]">
+                                     <div className="text-center min-w-[80px] flex flex-col items-center">
                                          <div className={`font-black uppercase ${difficultyColors[level.difficulty] || 'text-white'}`}>
                                             {level.difficulty === 'Unlisted' ? 'Unrated' : level.difficulty}
                                          </div>
@@ -684,6 +1077,8 @@ const App: React.FC = () => {
                                              </div>
                                          )}
                                      </div>
+
+
 
                                      {/* Admin Controls */}
                                      {user?.isAdmin && (
@@ -698,6 +1093,7 @@ const App: React.FC = () => {
                                                 <option value="Normal">Normal (4*)</option>
                                                 <option value="Hard">Hard (6*)</option>
                                                 <option value="Insane">Insane (8*)</option>
+                                                <option value="Extreme">Extreme (12*)</option>
                                              </select>
                                          </div>
                                      )}
@@ -714,33 +1110,51 @@ const App: React.FC = () => {
                      })}
                  </div>
               </div>
+             
+                 {/* SHOP: intentionally accessible from menu */}
+                 {false}
           </div>
       );
   }
 
+
+
+
   if (gameState === GameState.EDITOR) {
       return (
-          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-              <LevelEditor 
-                  onSave={saveLevel} 
-                  onExit={() => setGameState(GameState.LEVEL_SELECT)}
-              />
-          </div>
+          <LevelEditor
+              onSave={saveLevel}
+              onExit={() => setGameState(GameState.LEVEL_SELECT)}
+          />
       );
   }
 
   if (gameState === GameState.PLAYING && currentLevel) {
-      return (
+      {
+        return (
           <GameCanvas 
              gameState={GameState.PLAYING}
              setGameState={setGameState}
              setScore={setScore}
              levelData={currentLevel.data}
-             onDeath={() => setGameState(GameState.GAME_OVER)}
+             onDeath={() => {
+                 if (autoRespawn) {
+                     setScore(0);
+                     setCurrentAttempt(prev => prev + 1);
+                 } else {
+                     setGameState(GameState.GAME_OVER);
+                 }
+             }}
              onWin={handleLevelComplete}
-             playerColor={user?.selectedColor}
+             playerColor={user?.selectedColor || COLORS.admin}
+             playerFace={user?.selectedFace || 'default'}
+             attempt={currentAttempt}
+             progress={score}
+             autoRespawn={autoRespawn}
+             onRespawn={() => setCurrentAttempt(prev => prev + 1)}
           />
       );
+      }
   }
 
   if (gameState === GameState.GAME_OVER && currentLevel) {
@@ -774,7 +1188,7 @@ const App: React.FC = () => {
 
                   <div className="flex gap-4 justify-center">
                       <button 
-                        onClick={() => { setScore(0); setGameState(GameState.PLAYING); }}
+                        onClick={() => { setScore(0); setCurrentAttempt(prev => prev + 1); setGameState(GameState.PLAYING); }}
                         className="bg-cyan-600 hover:bg-cyan-500 p-4 rounded-full transition hover:scale-110 shadow-lg"
                       >
                           <RotateCcw size={32} />

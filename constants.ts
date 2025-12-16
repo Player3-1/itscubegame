@@ -1,4 +1,3 @@
-
 export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 450;
 
@@ -19,26 +18,11 @@ export const COLORS = {
   spike: '#ff003c', // Red/Pink
   block: '#fcee0a', // Yellow
   halfBlock: '#f97316', // Orange
-  ground: '#1e293b', // Slate 800
-  groundLine: '#334155', // Slate 700
+  passThrough: 'rgba(148,163,184,0.45)', // Soluk / içinden geçilebilir blok rengi
+  bouncer: '#06b6d4', // Zıplatıcı blok rengi (cyan)
+  admin: '#00f0ff', // Changed from dark purple to cyan for visibility
 };
 
-export interface Skin {
-  id: string;
-  color: string;
-  name: string;
-  starsRequired: number;
-}
+// Skins removed — colors handled centrally via `COLORS.admin`
 
-export const SKINS: Skin[] = [
-  { id: 'blue', color: '#00f0ff', name: 'Neon Mavi', starsRequired: 0 },
-  { id: 'red', color: '#ef4444', name: 'Alev Kırmızı', starsRequired: 0 },
-  { id: 'green', color: '#22c55e', name: 'Zehir Yeşil', starsRequired: 0 },
-  { id: 'yellow', color: '#eab308', name: 'Güneş Sarı', starsRequired: 0 },
-  { id: 'pink', color: '#ec4899', name: 'Şeker Pembe', starsRequired: 10 },
-  { id: 'orange', color: '#f97316', name: 'Magma', starsRequired: 10 },
-  { id: 'grey', color: '#94a3b8', name: 'Çelik', starsRequired: 10 },
-  { id: 'white', color: '#ffffff', name: 'Hayalet', starsRequired: 25 },
-  { id: 'black', color: '#000000', name: 'Gece', starsRequired: 25 },
-  { id: 'purple', color: '#a855f7', name: 'Galaksi', starsRequired: 25 },
-];
+// EMOTES and expression support removed per user request
