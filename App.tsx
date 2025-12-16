@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { GameCanvas } from './components/GameCanvas';
-import LevelEditor from './components/LevelEditor';
-import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types';
-import { ADMIN_PASSWORD, COLORS } from './constants';
+import { GameCanvas } from './GameCanvas';
+import LevelEditor from './LevelEditor';
+import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
+import { ADMIN_PASSWORD, COLORS } from './constants.ts';
 import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy } from 'lucide-react';
-import { db } from './firebase';
+import { db } from './firebase.ts';
 import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 // expressions/emotes removed per user request
 
