@@ -16,7 +16,7 @@ export const COLORS = {
   player: '#00f0ff', // Default
   playerTrail: 'rgba(0, 240, 255, 0.4)',
   spike: '#ff003c', // Red/Pink
-  block: '#fcee0a', // Yellow
+  block: '#ffa500', // Orange
   halfBlock: '#f97316', // Orange
   passThrough: 'rgba(148,163,184,0.45)', // Soluk / içinden geçilebilir blok rengi
   bouncer: '#06b6d4', // Zıplatıcı blok rengi (cyan)
