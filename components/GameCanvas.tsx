@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { GameState, Obstacle, ObstacleType, Particle, LevelData } from '../types';
+import { GameState, Obstacle, ObstacleType, Particle, LevelData } from '../types.ts';
 import { GAME_WIDTH, GAME_HEIGHT, GRAVITY, JUMP_FORCE, GROUND_HEIGHT, PLAYER_SIZE, BASE_SPEED, COLORS } from '../constants.ts';
 
 interface GameCanvasProps {
@@ -218,14 +218,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.strokeStyle = '#000';
         ctx.stroke();
       } else if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK) {
-        ctx.fillStyle = '#fcee0a';
+        ctx.fillStyle = obs.type === ObstacleType.HALF_BLOCK ? COLORS.halfBlock : COLORS.block;
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
         ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-        
+
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.fillRect(obs.x, obs.y, obs.width, 4);
+        ctx.fillStyle = COLORS.block;
       } else if (obs.type === ObstacleType.PASS_THROUGH) {
         ctx.fillStyle = 'rgba(148,163,184,0.45)';
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
