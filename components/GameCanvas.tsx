@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { GameState, Obstacle, ObstacleType, Particle, LevelData } from '../types.ts';
-import { GAME_WIDTH, GAME_HEIGHT, GRAVITY, JUMP_FORCE, GROUND_HEIGHT, PLAYER_SIZE, BASE_SPEED, COLORS } from './constants.ts';
+import { GAME_WIDTH, GAME_HEIGHT, GRAVITY, JUMP_FORCE, GROUND_HEIGHT, PLAYER_SIZE, BASE_SPEED, COLORS } from '../constants.ts';
 
 interface GameCanvasProps {
   gameState: GameState;
