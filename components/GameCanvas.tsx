@@ -59,7 +59,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     if (shouldRun) {
       obstacles.current = JSON.parse(JSON.stringify(levelData.obstacles));
-      const startX = isTestMode ? 100 : levelData.obstacles.length > 0 ? Math.min(...levelData.obstacles.map(o => o.x)) - 100 : 100;
+      const startX = isTestMode ? 100 : levelData.obstacles.length > 0 ? Math.min(...levelData.obstacles.map(o => o.x)) - 200 : 100;
       player.current = {
         x: startX,
         y: GROUND_HEIGHT - PLAYER_SIZE,
