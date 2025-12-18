@@ -137,32 +137,61 @@ const App: React.FC = () => {
 
   // expressions removed: purchase/equip handlers deleted
 
-  // Initialize Default Admin (dgoa) if not exists
+  // Initialize Default Admin (dgoa) - load from Firestore if exists, else create
   useEffect(() => {
-      const usersDb = getUsersDB();
-      const adminExists = usersDb.find(u => u.name === 'dgoa');
-      if (!adminExists) {
-          const defaultAdmin: User = {
-              name: 'dgoa',
-              password: 'd2d0d1d4',
-              isAdmin: true, 
-              totalStars: 0, // Reset to 0 stars
-              completedLevels: [],
-              likedLevels: [],
-              selectedColor: COLORS.admin
-          };
-          usersDb.push(defaultAdmin);
-          localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
-
-          (async () => {
-            try {
-              const ref = doc(db, 'users', defaultAdmin.name);
-              await setDoc(ref, defaultAdmin);
-            } catch (err) {
-              console.error('Firestore init admin error:', err);
-            }
-          })();
-      }
+      const loadAdmin = async () => {
+          try {
+              const docRef = doc(db, 'users', 'dgoa');
+              const docSnap = await getDoc(docRef);
+              if (docSnap.exists()) {
+                  const adminData = docSnap.data() as User;
+                  // Update localStorage
+                  const usersDb = getUsersDB();
+                  const index = usersDb.findIndex(u => u.name === 'dgoa');
+                  if (index !== -1) {
+                      usersDb[index] = adminData;
+                  } else {
+                      usersDb.push(adminData);
+                  }
+                  localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
+              } else {
+                  // Create default admin
+                  const defaultAdmin: User = {
+                      name: 'dgoa',
+                      password: 'd2d0d1d4',
+                      isAdmin: true,
+                      totalStars: 0,
+                      completedLevels: [],
+                      likedLevels: [],
+                      selectedColor: COLORS.admin
+                  };
+                  const usersDb = getUsersDB();
+                  usersDb.push(defaultAdmin);
+                  localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
+                  // Save to Firestore
+                  await setDoc(docRef, defaultAdmin);
+              }
+          } catch (err) {
+              console.error('Admin load/save error:', err);
+              // Fallback: ensure admin exists in localStorage
+              const usersDb = getUsersDB();
+              const adminExists = usersDb.find(u => u.name === 'dgoa');
+              if (!adminExists) {
+                  const defaultAdmin: User = {
+                      name: 'dgoa',
+                      password: 'd2d0d1d4',
+                      isAdmin: true,
+                      totalStars: 0,
+                      completedLevels: [],
+                      likedLevels: [],
+                      selectedColor: COLORS.admin
+                  };
+                  usersDb.push(defaultAdmin);
+                  localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
+              }
+          }
+      };
+      loadAdmin();
   }, []);
 
   // Check for auto-login session
@@ -1205,6 +1234,10 @@ const App: React.FC = () => {
       );
   }
 
+  return null;
+}
+
+export default App;
   return null;
 }
 
