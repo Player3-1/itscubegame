@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { GameState, Obstacle, ObstacleType, Particle, LevelData } from '../types.ts';
-import { GAME_WIDTH, GAME_HEIGHT, GRAVITY, JUMP_FORCE, GROUND_HEIGHT, PLAYER_SIZE, BASE_SPEED, COLORS } from '../constants.ts';
+import { GameState, Obstacle, ObstacleType, Particle, LevelData } from './types.ts';
+import { GAME_WIDTH, GAME_HEIGHT, GRAVITY, JUMP_FORCE, GROUND_HEIGHT, PLAYER_SIZE, BASE_SPEED, COLORS } from './constants.ts';
 
 interface GameCanvasProps {
   gameState: GameState;
@@ -540,9 +540,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       />
       {(gameState === GameState.PLAYING || isTestMode) && (
         <>
-          <div className="absolute top-4 left-4 text-white/50 text-sm font-mono pointer-events-none">
-            ESC to Exit
-          </div>
+          <button
+            onClick={() => setGameState(GameState.LEVEL_SELECT)}
+            className="absolute top-4 left-4 bg-red-600/80 hover:bg-red-500 text-white px-3 py-2 rounded font-bold text-sm sm:text-base shadow-lg"
+          >
+            ÇIKIŞ
+          </button>
           <div className="absolute top-4 right-4 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
             {isTestMode ? 'TEST MODE' : `Deneme #${attempt} — ${progress}%`}
           </div>
