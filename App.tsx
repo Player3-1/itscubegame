@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { GameCanvas } from './GameCanvas';
-import LevelEditor from './LevelEditor';
+import { GameCanvas } from '../GameCanvas';
+import LevelEditor from '../LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
 import { ADMIN_PASSWORD, COLORS } from './constants.ts';
 import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy } from 'lucide-react';
