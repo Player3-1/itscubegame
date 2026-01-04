@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { GameCanvas } from "./components/GameCanvas";
-import LevelEditor from "./components/LevelEditor";
+import { GameCanvas } from './GameCanvas';
+import LevelEditor from './LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
 import { ADMIN_PASSWORD, COLORS } from './constants.ts';
 import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy } from 'lucide-react';
 import { db } from './firebase.ts';
-import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 // expressions/emotes removed per user request
 
 // Start with empty levels
@@ -521,13 +521,13 @@ const App: React.FC = () => {
 
   if (gameState === GameState.LOGIN) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-rajdhani">
-            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700 relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-rajdhani p-4">
+            <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700 relative overflow-hidden">
                {/* Decorative background element */}
                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 via-pink-500 to-yellow-500"></div>
 
-               <h1 className="text-4xl font-black text-center text-cyan-400 mb-2 font-orbitron tracking-wider">CUBE DASH</h1>
-               <p className="text-center text-slate-400 mb-8 font-bold">
+               <h1 className="text-3xl sm:text-4xl font-black text-center text-cyan-400 mb-2 font-orbitron tracking-wider">CUBE DASH</h1>
+               <p className="text-center text-slate-400 mb-6 sm:mb-8 font-bold text-sm sm:text-base">
                    {showAdminCodeInput ? "YÖNETİCİ DOĞRULAMA" : (isRegistering ? "HESAP OLUŞTUR" : "GİRİŞ YAP")}
                </p>
                
@@ -601,10 +601,10 @@ const App: React.FC = () => {
                )}
 
                 {showAssignDifficulty && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-black/60" onClick={() => setShowAssignDifficulty(false)} />
-                        <div className="bg-slate-800 p-6 rounded-lg z-10 w-[520px] max-w-full border border-slate-700">
-                            <h3 className="text-2xl font-bold mb-4">Zorluk Ata (ID ile)</h3>
+                        <div className="bg-slate-800 p-4 sm:p-6 rounded-lg z-10 w-full max-w-md border border-slate-700">
+                            <h3 className="text-xl sm:text-2xl font-bold mb-4">Zorluk Ata (ID ile)</h3>
                             <div className="mb-4">
                                 <label className="text-sm text-slate-400">Bölüm ID (numara)</label>
                                 <input value={assignLevelId} onChange={(e) => setAssignLevelId(e.target.value)} placeholder="Örn: 12" className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" />
@@ -622,7 +622,7 @@ const App: React.FC = () => {
                                 </select>
                             </div>
                             <div className="flex gap-2 justify-end">
-                                <button onClick={() => setShowAssignDifficulty(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Vazgeç</button>
+                                <button onClick={() => setShowAssignDifficulty(false)} className="px-3 sm:px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm sm:text-base">Vazgeç</button>
                                 <button onClick={() => {
                                     const n = Number(assignLevelId);
                                     if (!n || isNaN(n)) { alert('Geçerli bir ID girin'); return; }
@@ -630,7 +630,7 @@ const App: React.FC = () => {
                                     if (!found) { alert('ID ile eşleşen bölüm yok'); return; }
                                     updateDifficulty(found.id, assignDifficulty);
                                     setShowAssignDifficulty(false);
-                                }} className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-white">Uygula</button>
+                                }} className="px-3 sm:px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-white text-sm sm:text-base">Uygula</button>
                             </div>
                         </div>
                     </div>
@@ -642,26 +642,26 @@ const App: React.FC = () => {
 
   if (gameState === GameState.MENU) {
       return (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-             <div className="absolute top-4 right-4 flex items-center gap-4">
+          <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] px-4">
+             <div className="absolute top-4 right-4 flex items-center gap-2 sm:gap-4">
                 <div className="text-right">
-                    <div className="text-cyan-400 font-bold flex items-center justify-end gap-2">
-                        {user?.isAdmin && <ShieldAlert size={16} className="text-pink-500"/>}
+                    <div className="text-cyan-400 font-bold flex items-center justify-end gap-1 sm:gap-2 text-sm sm:text-base">
+                        {user?.isAdmin && <ShieldAlert size={14} className="text-pink-500 sm:w-4 sm:h-4"/>}
                         {user?.name}
                     </div>
                     <div className="text-xs text-yellow-400 flex items-center justify-end gap-1">
                         <Star size={12} fill="currentColor"/> {user?.totalStars} Stars
                     </div>
                 </div>
-                <button onClick={() => setShowSettings(true)} className="bg-slate-800/50 p-2 rounded hover:bg-slate-700 text-xs">Ayarlar</button>
-                <button onClick={handleLogout} className="bg-red-900/50 p-2 rounded hover:bg-red-900 text-xs">Çıkış</button>
+                <button onClick={() => setShowSettings(true)} className="bg-slate-800/50 p-1 sm:p-2 rounded hover:bg-slate-700 text-xs">Ayarlar</button>
+                <button onClick={handleLogout} className="bg-red-900/50 p-1 sm:p-2 rounded hover:bg-red-900 text-xs">Çıkış</button>
              </div>
 
              {showSettings && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60" onClick={() => setShowSettings(false)} />
-                    <div className="bg-slate-800 p-6 rounded-lg z-10 w-[420px] max-w-full border border-slate-700">
-                        <h3 className="text-2xl font-bold mb-4">Ayarlar</h3>
+                    <div className="bg-slate-800 p-4 sm:p-6 rounded-lg z-10 w-full max-w-md border border-slate-700">
+                        <h3 className="text-xl sm:text-2xl font-bold mb-4">Ayarlar</h3>
                         <div className="mb-4">
                             <label className="flex items-center gap-2">
                                 <input type="checkbox" checked={autoRespawn} onChange={(e) => { setAutoRespawn(e.target.checked); localStorage.setItem('nd_auto_respawn', JSON.stringify(e.target.checked)); }} />
@@ -676,39 +676,39 @@ const App: React.FC = () => {
              )}
 
 
-             <h1 className="text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-12 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] font-orbitron transform -skew-x-6">
+             <h1 className="text-4xl sm:text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-6 sm:mb-12 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] font-orbitron transform -skew-x-6 text-center">
                 CUBE DASH
              </h1>
 
-             <div className="flex gap-8">
+             <div className="flex flex-col sm:flex-row gap-4 sm:gap-8">
                  <button
                     onClick={() => setGameState(GameState.CHARACTER_SELECT)}
-                    className="group w-40 h-40 bg-slate-800 border-2 border-slate-600 hover:border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(34,211,238,0.2)]"
+                    className="group w-32 h-32 sm:w-40 sm:h-40 bg-slate-800 border-2 border-slate-600 hover:border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(34,211,238,0.2)]"
                  >
-                    <UserIcon size={48} className="text-slate-400 group-hover:text-cyan-400" />
-                    <span className="font-bold font-orbitron text-lg">KARAKTER</span>
+                    <UserIcon size={32} className="sm:w-12 sm:h-12 text-slate-400 group-hover:text-cyan-400" />
+                    <span className="font-bold font-orbitron text-sm sm:text-lg">KARAKTER</span>
                  </button>
 
 
                  <button
                     onClick={() => setGameState(GameState.LEVEL_SELECT)}
-                    className="group w-40 h-40 bg-cyan-600 hover:bg-cyan-500 border-2 border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]"
+                    className="group w-32 h-32 sm:w-40 sm:h-40 bg-cyan-600 hover:bg-cyan-500 border-2 border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]"
                  >
-                    <Play size={48} className="text-black fill-black" />
-                    <span className="font-bold font-orbitron text-lg text-black">OYNA</span>
+                    <Play size={32} className="sm:w-12 sm:h-12 text-black fill-black" />
+                    <span className="font-bold font-orbitron text-sm sm:text-lg text-black">OYNA</span>
                  </button>
 
                  <button
                     onClick={() => setGameState(GameState.LEADERBOARD)}
-                    className="group w-40 h-40 bg-purple-900 border-2 border-purple-700 hover:border-purple-500 rounded-2xl flex flex-col items-center justify-center gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)]"
+                    className="group w-32 h-32 sm:w-40 sm:h-40 bg-purple-900 border-2 border-purple-700 hover:border-purple-500 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)]"
                  >
-                    <Globe size={48} className="text-purple-300 group-hover:text-white" />
-                    <span className="font-bold font-orbitron text-lg">TOP 50</span>
+                    <Globe size={32} className="sm:w-12 sm:h-12 text-purple-300 group-hover:text-white" />
+                    <span className="font-bold font-orbitron text-sm sm:text-lg">TOP 50</span>
                  </button>
                      {/* EN ZOR 10 removed from main menu */}
              </div>
 
-             <div className="mt-8 text-center text-slate-500 text-sm">
+             <div className="mt-4 sm:mt-8 text-center text-slate-500 text-xs sm:text-sm">
                Versiyon: 1.1
              </div>
           </div>
@@ -719,24 +719,24 @@ const App: React.FC = () => {
       const stars = user?.totalStars || 0;
 
       return (
-        <div className="min-h-screen bg-slate-900 text-white p-8 flex flex-col items-center justify-center">
+        <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center justify-center">
           <div className="w-full max-w-3xl">
             <button
               onClick={() => setGameState(GameState.MENU)}
-              className="mb-6 p-2 hover:bg-slate-800 rounded-full"
+              className="mb-4 sm:mb-6 p-2 hover:bg-slate-800 rounded-full"
             >
-              <ChevronLeft size={32} />
+              <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
             </button>
-            <h2 className="text-3xl font-orbitron font-bold text-cyan-400 mb-4 text-center">
+            <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-cyan-400 mb-4 text-center">
               KARAKTER
             </h2>
 
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-              <div className="flex flex-col items-center gap-6">
+            <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700">
+              <div className="flex flex-col items-center gap-4 sm:gap-6">
                 {/* Ortadaki karakter önizlemesi */}
                 <div className="flex flex-col items-center gap-2">
                   <div
-                    className="w-32 h-32 rounded-2xl border-4 border-black shadow-xl relative overflow-hidden"
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl border-4 border-black shadow-xl relative overflow-hidden"
                     style={{ backgroundColor: currentColor }}
                   >
                     <canvas
@@ -747,7 +747,7 @@ const App: React.FC = () => {
                             ctx.clearRect(0, 0, 128, 128);
                             ctx.save();
                             ctx.translate(64, 64);
-                            ctx.scale(4, 4); // Scale up for better visibility
+                            ctx.scale(3, 3); // Scale up for better visibility, adjusted for mobile
                             ctx.fillStyle = '#000';
                             if (currentFace === 'happy') {
                               ctx.fillRect(-7, -7, 5, 5);
@@ -818,7 +818,7 @@ const App: React.FC = () => {
                   <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-2">
                     Yüzler
                   </h3>
-                  <div className="flex flex-wrap gap-3 justify-center">
+                  <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
                     {faceOptions.map(face => {
                       const lockedByAdmin = face.adminOnly && !user?.isAdmin;
                       const lockedByStars = !lockedByAdmin && stars < face.cost;
@@ -829,7 +829,7 @@ const App: React.FC = () => {
                         <button
                           key={face.id}
                           onClick={() => handleSelectFace(face.id, face.cost, face.adminOnly)}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold flex flex-col items-center min-w-[90px] border
+                          className={`px-2 sm:px-3 py-2 rounded-lg text-xs font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] border
                             ${isSelected ? 'bg-cyan-600 border-cyan-400' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}
                             ${isLocked ? 'opacity-60' : ''}`}
                         >
@@ -857,7 +857,7 @@ const App: React.FC = () => {
                   <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-2">
                     Renkler
                   </h3>
-                  <div className="flex flex-wrap gap-3 justify-center">
+                  <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
                     {colorOptions.map(opt => {
                       const isSelected = currentColor.toLowerCase() === opt.color.toLowerCase();
                       const locked = stars < opt.cost;
@@ -866,15 +866,15 @@ const App: React.FC = () => {
                         <button
                           key={opt.id}
                           onClick={() => handleSelectColor(opt.color, opt.cost)}
-                          className={`flex flex-col items-center gap-1 p-2 rounded-lg border min-w-[70px]
+                          className={`flex flex-col items-center gap-1 p-2 rounded-lg border min-w-[60px] sm:min-w-[70px]
                             ${isSelected ? 'border-cyan-400 bg-slate-700' : 'border-slate-600 bg-slate-800 hover:bg-slate-700'}
                             ${locked ? 'opacity-60' : ''}`}
                         >
                           <div
-                            className="w-8 h-8 rounded border border-black"
+                            className="w-6 h-6 sm:w-8 sm:h-8 rounded border border-black"
                             style={{ backgroundColor: opt.color }}
                           />
-                          <span className="text-[11px] font-bold">{opt.label}</span>
+                          <span className="text-[10px] sm:text-[11px] font-bold">{opt.label}</span>
                           {locked ? (
                             <span className="flex items-center gap-1 text-[10px] text-yellow-300">
                               <Lock size={10} /> {opt.cost}⭐
@@ -892,7 +892,7 @@ const App: React.FC = () => {
 
                 <button
                   onClick={() => setGameState(GameState.MENU)}
-                  className="mt-4 px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-full font-bold font-orbitron"
+                  className="mt-4 px-4 sm:px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-full font-bold font-orbitron text-sm sm:text-base"
                 >
                   Geri
                 </button>
@@ -903,24 +903,24 @@ const App: React.FC = () => {
       );
   } else if (gameState === GameState.LEADERBOARD) {
       return (
-          <div className="min-h-screen bg-slate-900 text-white p-8 flex flex-col items-center">
+          <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center">
              <div className="w-full max-w-2xl">
-                 <div className="flex items-center justify-between mb-8">
-                    <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={32}/></button>
-                    <h2 className="text-3xl font-orbitron font-bold text-purple-400">DÜNYA SIRALAMASI</h2>
-                    <div className="w-10"></div>
+                 <div className="flex items-center justify-between mb-4 sm:mb-8">
+                    <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={24} className="sm:w-8 sm:h-8"/></button>
+                    <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-purple-400">DÜNYA SIRALAMASI</h2>
+                    <div className="w-6 sm:w-10"></div>
                  </div>
 
                  <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                  {leaderboardDb.length === 0 && (
-                         <div className="p-8 text-center text-slate-500">Henüz kimse sıralamaya girmedi.</div>
+                         <div className="p-4 sm:p-8 text-center text-slate-500 text-sm sm:text-base">Henüz kimse sıralamaya girmedi.</div>
                      )}
                      {leaderboardDb.map((entry, idx) => (
-                         <div key={idx} className={`flex items-center justify-between p-4 border-b border-slate-700 ${entry.name === user?.name ? 'bg-purple-900/30' : ''}`}>
-                             <div className="flex items-center gap-4">
-                                 <div className="font-black text-2xl w-8 text-slate-500 italic">#{idx + 1}</div>
+                         <div key={idx} className={`flex items-center justify-between p-3 sm:p-4 border-b border-slate-700 ${entry.name === user?.name ? 'bg-purple-900/30' : ''}`}>
+                             <div className="flex items-center gap-2 sm:gap-4">
+                                 <div className="font-black text-lg sm:text-2xl w-6 sm:w-8 text-slate-500 italic">#{idx + 1}</div>
                                 <div className="flex flex-col items-center">
-                                     <div className="w-8 h-8 border border-black relative overflow-hidden" style={{backgroundColor: entry.selectedColor || COLORS.admin}}>
+                                     <div className="w-6 h-6 sm:w-8 sm:h-8 border border-black relative overflow-hidden" style={{backgroundColor: entry.selectedColor || COLORS.admin}}>
                                        <canvas
                                          ref={(canvas) => {
                                            if (canvas) {
@@ -985,13 +985,13 @@ const App: React.FC = () => {
                                        />
                                      </div>
                                  </div>
-                                 <div className="font-bold text-lg">
+                                 <div className="font-bold text-base sm:text-lg">
                                      {entry.name}
-                                     {entry.name === 'dgoa' && <ShieldAlert size={14} className="inline ml-2 text-pink-500"/>}
+                                     {entry.name === 'dgoa' && <ShieldAlert size={12} className="sm:w-3.5 sm:h-3.5 inline ml-1 sm:ml-2 text-pink-500"/>}
                                  </div>
                              </div>
-                             <div className="flex items-center gap-2 text-yellow-400 font-bold font-mono text-xl">
-                                 {entry.totalStars} <Star fill="currentColor" size={20}/>
+                             <div className="flex items-center gap-1 sm:gap-2 text-yellow-400 font-bold font-mono text-lg sm:text-xl">
+                                 {entry.totalStars} <Star fill="currentColor" size={16} className="sm:w-5 sm:h-5"/>
                              </div>
                          </div>
                      ))}
@@ -1003,45 +1003,45 @@ const App: React.FC = () => {
 
   if (gameState === GameState.LEVEL_SELECT) {
       return (
-          <div className="min-h-screen bg-slate-900 text-white p-4">
-              <div className="max-w-4xl mx-auto">
-                 <div className="flex items-center justify-between mb-8">
-                    <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={32}/></button>
-                    <h2 className="text-3xl font-orbitron font-bold text-cyan-400">BÖLÜMLER</h2>
-                    <div className="w-10"></div>
+          <div className="min-h-screen bg-slate-900 text-white p-2 sm:p-4">
+              <div className="max-w-full sm:max-w-4xl mx-auto">
+                 <div className="flex items-center justify-between mb-4 sm:mb-8">
+                    <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={24} className="sm:w-8 sm:h-8"/></button>
+                    <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-cyan-400">BÖLÜMLER</h2>
+                    <div className="w-6 sm:w-10"></div>
                  </div>
 
-                 <div className="flex gap-4 mb-6 justify-center">
-                    <button 
+                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-6 justify-center">
+                    <button
                         onClick={() => setGameState(GameState.EDITOR)}
-                        className="flex items-center gap-2 bg-pink-600 px-6 py-3 rounded-lg font-bold hover:bg-pink-500 hover:scale-105 transition shadow-lg"
+                        className="flex items-center gap-2 bg-pink-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-bold hover:bg-pink-500 hover:scale-105 transition shadow-lg text-sm sm:text-base"
                     >
-                        <PenTool size={20}/> BÖLÜM OLUŞTUR
+                        <PenTool size={16} className="sm:w-5 sm:h-5"/> BÖLÜM OLUŞTUR
                     </button>
                     {user?.isAdmin && (
                         <>
-                        <button onClick={() => { setShowAssignDifficulty(true); setAssignLevelId(''); setAssignDifficulty('Unlisted'); }} className="flex items-center gap-2 bg-yellow-700 px-4 py-3 rounded-lg font-bold hover:bg-yellow-600 hover:scale-105 transition shadow-lg">
-                            <ShieldAlert size={18}/> ZORLUK ATA
+                        <button onClick={() => { setShowAssignDifficulty(true); setAssignLevelId(''); setAssignDifficulty('Unlisted'); }} className="flex items-center gap-2 bg-yellow-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-bold hover:bg-yellow-600 hover:scale-105 transition shadow-lg text-sm sm:text-base">
+                            <ShieldAlert size={14} className="sm:w-4.5 sm:h-4.5"/> ZORLUK ATA
                         </button>
                         </>
                     )}
                  </div>
 
                  {/* Arama çubuğu */}
-                 <div className="mb-4 flex justify-center">
+                 <div className="mb-2 sm:mb-4 flex justify-center">
                     <input
                        value={levelSearch}
                        onChange={(e) => setLevelSearch(e.target.value)}
                        placeholder="Bölüm adı veya yazar ara..."
-                       className="w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-400"
+                       className="w-full max-w-full sm:max-w-md bg-slate-800 border border-slate-600 rounded-lg px-3 sm:px-4 py-2 text-sm focus:outline-none focus:border-cyan-400"
                     />
                  </div>
 
                  {/* Admin-only hard list panel intentionally hidden from Level Select; open via the EN ZOR 10 button */}
 
-                 <div className="grid gap-4 max-h-[480px] overflow-y-auto pr-1">
+                 <div className="grid gap-2 sm:gap-4 max-h-[60vh] sm:max-h-[480px] overflow-y-auto pr-1">
                      {levels.length === 0 && (
-                         <div className="text-center text-slate-500 py-20">
+                         <div className="text-center text-slate-500 py-10 sm:py-20 text-sm sm:text-base">
                              Henüz yayınlanmış bir bölüm yok. İlk bölümü sen yap!
                          </div>
                      )}
@@ -1065,26 +1065,26 @@ const App: React.FC = () => {
                              'Insane': 'text-purple-500',
                              'Extreme': 'text-pink-500'
                          };
-                         
+
                          const isCompleted = user?.completedLevels.includes(level.id);
                          const isLiked = user?.likedLevels?.includes(level.id);
 
                          return (
-                             <div key={level.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:border-slate-500 transition group">
-                                 <div>
-                                     <div className="flex items-center gap-3">
-                                        <h3 className="text-xl font-bold font-orbitron">{level.name} <span className="text-xs text-slate-400 font-mono ml-2">#{level.levelNumber}</span></h3>
+                             <div key={level.id} className="bg-slate-800 p-2 sm:p-4 rounded-xl border border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:border-slate-500 transition group gap-2 sm:gap-0">
+                                 <div className="flex-1">
+                                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                                        <h3 className="text-lg sm:text-xl font-bold font-orbitron">{level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span></h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             {/* Removed background and ground color previews */}
                                         </div>
                                         {isCompleted && (
-                                            <div className="text-green-500 text-xs border border-green-500 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                            <div className="text-green-500 text-xs border border-green-500 px-2 py-0.5 rounded font-bold flex items-center gap-1 w-fit">
                                                 <CheckCircle size={10}/> TAMAMLANDI
                                             </div>
                                         )}
                                      </div>
                                      <p className="text-sm text-slate-400">by {level.author}</p>
-                                     <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                                     <div className="flex items-center gap-2 sm:gap-4 mt-2 text-xs text-slate-500">
                                          <span className="flex items-center gap-1"><Eye size={12}/> {level.plays || 0}</span>
                                          <button
                                             onClick={(e) => { e.stopPropagation(); handleLikeLevel(level.id); }}
@@ -1094,15 +1094,15 @@ const App: React.FC = () => {
                                          </button>
                                      </div>
                                  </div>
-                                 
-                                 <div className="flex items-center gap-6">
+
+                                 <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 sm:gap-6">
                                      <div className="text-center min-w-[80px] flex flex-col items-center">
-                                         <div className={`font-black uppercase ${difficultyColors[level.difficulty] || 'text-white'}`}>
+                                         <div className={`font-black uppercase text-sm sm:text-base ${difficultyColors[level.difficulty] || 'text-white'}`}>
                                             {level.difficulty === 'Unlisted' ? 'Unrated' : level.difficulty}
                                          </div>
                                          {level.stars > 0 && (
-                                             <div className="text-yellow-400 text-sm font-bold flex justify-center items-center gap-1">
-                                                {level.stars} <Star size={12} fill="currentColor"/>
+                                             <div className="text-yellow-400 text-xs sm:text-sm font-bold flex justify-center items-center gap-1">
+                                                {level.stars} <Star size={10} className="sm:w-3 sm:h-3" fill="currentColor"/>
                                              </div>
                                          )}
                                      </div>
@@ -1111,8 +1111,8 @@ const App: React.FC = () => {
 
                                      {/* Admin Controls */}
                                      {user?.isAdmin && (
-                                         <div className="flex flex-col gap-1">
-                                             <select 
+                                         <div className="flex flex-col gap-0.5 sm:gap-1">
+                                             <select
                                                 className="bg-black text-xs p-1 rounded border border-slate-600 text-white"
                                                 value={level.difficulty}
                                                 onChange={(e) => updateDifficulty(level.id, e.target.value as any)}
@@ -1127,11 +1127,11 @@ const App: React.FC = () => {
                                          </div>
                                      )}
 
-                                     <button 
+                                     <button
                                         onClick={() => handlePlayLevel(level)}
-                                        className="bg-cyan-600 hover:bg-cyan-500 p-3 rounded-full text-black transition hover:scale-110 shadow-lg group-hover:shadow-cyan-500/50"
+                                        className="bg-cyan-600 hover:bg-cyan-500 p-2 sm:p-3 rounded-full text-black transition hover:scale-110 shadow-lg group-hover:shadow-cyan-500/50"
                                      >
-                                         <Play size={24} fill="currentColor"/>
+                                         <Play size={20} className="sm:w-6 sm:h-6" fill="currentColor"/>
                                      </button>
                                  </div>
                              </div>
@@ -1139,7 +1139,7 @@ const App: React.FC = () => {
                      })}
                  </div>
               </div>
-             
+
                  {/* SHOP: intentionally accessible from menu */}
                  {false}
           </div>
@@ -1189,42 +1189,42 @@ const App: React.FC = () => {
   if (gameState === GameState.GAME_OVER && currentLevel) {
       // Calculate progress
       const isWin = score >= 100;
-      
+
       return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white relative">
+          <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white relative p-4">
               <div className="absolute inset-0 overflow-hidden">
                   <div className={`absolute inset-0 opacity-20 bg-gradient-to-b ${isWin ? 'from-green-500 to-slate-900' : 'from-red-500 to-slate-900'}`}></div>
               </div>
 
-              <div className="relative z-10 bg-slate-800 p-12 rounded-3xl shadow-2xl text-center border-4 border-slate-700 max-w-lg w-full animate-in zoom-in">
-                  <h2 className={`text-6xl font-black mb-4 font-orbitron ${isWin ? 'text-green-400' : 'text-red-500'}`}>
+              <div className="relative z-10 bg-slate-800 p-6 sm:p-12 rounded-3xl shadow-2xl text-center border-4 border-slate-700 max-w-lg w-full animate-in zoom-in">
+                  <h2 className={`text-4xl sm:text-6xl font-black mb-4 font-orbitron ${isWin ? 'text-green-400' : 'text-red-500'}`}>
                       {isWin ? "TAMAMLANDI!" : "ELENDİN!"}
                   </h2>
-                  
-                  <div className="flex justify-center my-8">
-                     <div className="relative w-48 h-4 bg-slate-700 rounded-full overflow-hidden border border-slate-500">
+
+                  <div className="flex justify-center my-6 sm:my-8">
+                     <div className="relative w-36 sm:w-48 h-4 bg-slate-700 rounded-full overflow-hidden border border-slate-500">
                          <div className={`h-full ${isWin ? 'bg-green-500' : 'bg-red-500'}`} style={{width: `${score}%`}}></div>
                      </div>
-                     <span className="absolute mt-6 font-mono font-bold text-xl">{score}%</span>
+                     <span className="absolute mt-6 font-mono font-bold text-lg sm:text-xl">{score}%</span>
                   </div>
 
                   {isWin && currentLevel.stars > 0 && (
-                      <div className="flex justify-center items-center gap-2 text-yellow-400 text-2xl font-bold mb-8 bg-yellow-900/20 p-4 rounded-xl border border-yellow-500/30">
-                          <Trophy size={32} />
+                      <div className="flex justify-center items-center gap-2 text-yellow-400 text-lg sm:text-2xl font-bold mb-6 sm:mb-8 bg-yellow-900/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
+                          <Trophy size={24} className="sm:w-8 sm:h-8" />
                           +{currentLevel.stars} YILDIZ KAZANDIN!
                       </div>
                   )}
 
                   <div className="flex gap-4 justify-center">
-                      <button 
+                      <button
                         onClick={() => { setScore(0); setCurrentAttempt(prev => prev + 1); setGameState(GameState.PLAYING); }}
-                        className="bg-cyan-600 hover:bg-cyan-500 p-4 rounded-full transition hover:scale-110 shadow-lg"
+                        className="bg-cyan-600 hover:bg-cyan-500 p-3 sm:p-4 rounded-full transition hover:scale-110 shadow-lg"
                       >
-                          <RotateCcw size={32} />
+                          <RotateCcw size={24} className="sm:w-8 sm:h-8" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => setGameState(GameState.LEVEL_SELECT)}
-                        className="bg-slate-600 hover:bg-slate-500 px-8 py-4 rounded-full font-bold font-orbitron transition hover:scale-105"
+                        className="bg-slate-600 hover:bg-slate-500 px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold font-orbitron transition hover:scale-105 text-sm sm:text-base"
                       >
                           MENÜ
                       </button>
@@ -1234,10 +1234,6 @@ const App: React.FC = () => {
       );
   }
 
-  return null;
-}
-
-export default App;
   return null;
 }
 
