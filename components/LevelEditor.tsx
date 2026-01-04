@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ObstacleType, LevelData, Obstacle, GameState } from '../types.ts';
-import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from '../constants.ts';
+import { ObstacleType, LevelData, Obstacle, GameState } from './types.ts';
+import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from './constants.ts';
 import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser } from 'lucide-react';
 import { GameCanvas } from './GameCanvas.tsx';
 
@@ -276,15 +276,12 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
           return;
       }
 
-      const minX = Math.min(...obstacles.map(o => o.x));
-      const maxDist = Math.max(...obstacles.map(o => o.x + o.width));
-
-      const shiftedObstacles = obstacles.map(o => ({ ...o, x: o.x - minX + 100 }));
+      const shiftedObstacles = obstacles;
 
       const levelData: LevelData = {
           obstacles: shiftedObstacles,
           theme: 'neon-cyan',
-          length: maxDist - minX + 100 + 500
+          length: Math.max(...obstacles.map(o => o.x + o.width), 1000) + 500
       };
       onSave(levelData, levelName);
   };
