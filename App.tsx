@@ -212,6 +212,18 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Handle ESC key for exiting game over screen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Escape' && gameState === GameState.GAME_OVER) {
+        setGameState(GameState.LEVEL_SELECT);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState]);
+
   const handleAuthAction = () => {
      setLoginError("");
      const name = loginName.trim();

@@ -365,35 +365,35 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
 
   return (
     <div className="flex flex-col gap-4 w-full h-screen">
-       <div className="flex justify-between items-center bg-slate-800 p-4 rounded-lg">
-          <div className="flex items-center gap-3">
-            <input 
-               value={levelName}
-               onChange={(e) => setLevelName(e.target.value)}
-               className="bg-slate-900 text-white px-3 py-2 rounded border border-slate-700"
-               placeholder="Bölüm İsmi"
-            />
-            <div className="flex items-center gap-2">
-    
-            </div>
-          </div>
-          <div className="flex gap-2">
-             <button 
-                onClick={toggleTest} 
-                className={`px-4 py-2 rounded font-bold flex gap-2 items-center ${isTesting ? 'bg-orange-500 hover:bg-orange-400' : 'bg-cyan-600 hover:bg-cyan-500'}`}
-             >
-                {isTesting ? <><Square size={18} fill="currentColor"/> DÜZENLE</> : <><Play size={18} fill="currentColor"/> TEST ET</>}
-             </button>
-             {!isTesting && (
-                <>
-                    <button onClick={onExit} className="px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500">Çık</button>
-                    <button onClick={handleSave} className="px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500">
-                        <Save size={18} /> YAYINLA
-                    </button>
-                </>
-             )}
-          </div>
-       </div>
+       <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-800 p-2 sm:p-4 rounded-lg gap-2 sm:gap-0">
+           <div className="flex items-center gap-3 w-full sm:w-auto">
+             <input
+                value={levelName}
+                onChange={(e) => setLevelName(e.target.value)}
+                className="bg-slate-900 text-white px-3 py-2 rounded border border-slate-700 flex-1 sm:flex-none"
+                placeholder="Bölüm İsmi"
+             />
+             <div className="flex items-center gap-2">
+
+             </div>
+           </div>
+           <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
+              <button
+                 onClick={toggleTest}
+                 className={`px-3 sm:px-4 py-2 rounded font-bold flex gap-2 items-center text-sm sm:text-base ${isTesting ? 'bg-orange-500 hover:bg-orange-400' : 'bg-cyan-600 hover:bg-cyan-500'}`}
+              >
+                 {isTesting ? <><Square size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> DÜZENLE</> : <><Play size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> TEST ET</>}
+              </button>
+              {!isTesting && (
+                 <>
+                     <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Çık</button>
+                     <button onClick={handleSave} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
+                         <Save size={16} className="sm:w-5 sm:h-5" /> YAYINLA
+                     </button>
+                 </>
+              )}
+           </div>
+        </div>
 
        {isTesting ? (
             <div className="flex-1 w-full">
