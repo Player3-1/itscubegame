@@ -1,23 +1,31 @@
 export enum GameState {
-  LOGIN = 'LOGIN',
-  MENU = 'MENU',
-  SHOP = 'SHOP',
-  LEVEL_SELECT = 'LEVEL_SELECT',
-  EDITOR = 'EDITOR',
-  PLAYING = 'PLAYING',
-  GAME_OVER = 'GAME_OVER',
-  LEADERBOARD = 'LEADERBOARD',
-  CHARACTER_SELECT = 'CHARACTER_SELECT'
+   LOGIN = 'LOGIN',
+   MENU = 'MENU',
+   SHOP = 'SHOP',
+   LEVEL_SELECT = 'LEVEL_SELECT',
+   EDITOR = 'EDITOR',
+   PLAYING = 'PLAYING',
+   GAME_OVER = 'GAME_OVER',
+   LEADERBOARD = 'LEADERBOARD',
+   CHARACTER_SELECT = 'CHARACTER_SELECT',
+   HARDEST_LEVELS = 'HARDEST_LEVELS'
 }
 
 export enum ObstacleType {
   SPIKE = 'SPIKE',
   SPIKE_DOWN = 'SPIKE_DOWN',
+  FAKE_SPIKE = 'FAKE_SPIKE', // Sahte diken
+  FAKE_SPIKE_DOWN = 'FAKE_SPIKE_DOWN', // Ters sahte diken
   BLOCK = 'BLOCK',
   PASS_THROUGH = 'PASS_THROUGH', // New: visual block you can pass through
   BOUNCER = 'BOUNCER', // Zıplatıcı blok
   HALF_BLOCK = 'HALF_BLOCK', // Yarım blok
-  FLOOR_GAP = 'FLOOR_GAP'
+  FLOOR_GAP = 'FLOOR_GAP',
+  DECOR_1 = 'DECOR_1', // Purple grid block (solid)
+  DECOR_2 = 'DECOR_2', // Green block (solid)
+  GRAVITY_UP = 'GRAVITY_UP', // Yer çekimini yukarıya çeviren blok
+  GRAVITY_NORMAL = 'GRAVITY_NORMAL', // Normal yer çekimine çeviren blok
+  CUBE_PORTAL = 'CUBE_PORTAL' // Küp portalı
 }
 
 export interface Obstacle {

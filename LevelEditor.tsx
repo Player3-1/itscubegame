@@ -24,14 +24,17 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const tools = [
-    { type: ObstacleType.BLOCK, icon: Box, label: 'Blok', color: COLORS.block },
-    { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Yarım', color: COLORS.halfBlock },
-        { type: ObstacleType.PASS_THROUGH, icon: Box, label: 'İçinden Geç', color: COLORS.passThrough },
-        { type: ObstacleType.BOUNCER, icon: ArrowUp, label: 'Zıplatıcı', color: COLORS.bouncer },
-    { type: ObstacleType.SPIKE, icon: Triangle, label: 'Diken', color: COLORS.spike },
-    { type: ObstacleType.SPIKE_DOWN, icon: Triangle, label: 'Ters Diken', color: COLORS.spike },
-    { type: ObstacleType.FLOOR_GAP, icon: ArrowRight, label: 'Boşluk', color: '#fff' }
-  ];
+      { type: ObstacleType.BLOCK, icon: Box, label: 'Blok', color: COLORS.block },
+      { type: ObstacleType.DECOR_1, icon: Box, label: 'Dekor 1', color: '#10b981' },
+      { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Yarım', color: COLORS.halfBlock },
+          { type: ObstacleType.PASS_THROUGH, icon: Box, label: 'İçinden Geç', color: COLORS.passThrough },
+          { type: ObstacleType.BOUNCER, icon: ArrowUp, label: 'Zıplatıcı', color: COLORS.bouncer },
+      { type: ObstacleType.SPIKE, icon: Triangle, label: 'Diken', color: COLORS.spike },
+      { type: ObstacleType.FAKE_SPIKE, icon: Triangle, label: 'Sahte Diken', color: 'rgba(255, 0, 60, 0.6)' },
+      { type: ObstacleType.SPIKE_DOWN, icon: Triangle, label: 'Ters Diken', color: 'rgba(255, 0, 60, 0.6)' },
+      { type: ObstacleType.FAKE_SPIKE_DOWN, icon: Triangle, label: 'Ters Sahte Diken', color: 'rgba(255, 0, 60, 0.6)' },
+      { type: ObstacleType.FLOOR_GAP, icon: ArrowRight, label: 'Boşluk', color: '#fff' }
+    ];
 
   // Draw Editor Loop
   useEffect(() => {
@@ -130,11 +133,51 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                  } else if (obs.type === ObstacleType.FLOOR_GAP) {
                      ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
                      ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                 } else if (obs.type === ObstacleType.DECOR_1) {
+                     ctx.fillStyle = '#10b981';
+                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                     ctx.strokeStyle = '#000';
+                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                 } else if (obs.type === ObstacleType.FAKE_SPIKE) {
+                     ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
+                     ctx.beginPath();
+                     ctx.moveTo(obs.x, obs.y + obs.height);
+                     ctx.lineTo(obs.x + obs.width / 2, obs.y);
+                     ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                     ctx.fill();
+                 } else if (obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
+                     ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
+                     ctx.beginPath();
+                     ctx.moveTo(obs.x, obs.y);
+                     ctx.lineTo(obs.x + obs.width, obs.y);
+                     ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
+                     ctx.closePath();
+                     ctx.fill();
+                 } else if (obs.type === ObstacleType.CUBE_PORTAL) {
+                     ctx.fillStyle = '#a855f7';
+                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                     ctx.strokeStyle = '#000';
+                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                     // Draw cube symbol
+                     ctx.fillStyle = '#000';
+                     const cx = obs.x + obs.width / 2;
+                     const cy = obs.y + obs.height / 2;
+                     const size = 6;
+                     ctx.fillRect(cx - size, cy - size, size * 2, size * 2);
+                     // 3D effect lines
+                     ctx.strokeStyle = '#fff';
+                     ctx.lineWidth = 1;
+                     ctx.beginPath();
+                     ctx.moveTo(cx - size, cy - size);
+                     ctx.lineTo(cx - size - 3, cy - size - 3);
+                     ctx.moveTo(cx + size, cy - size);
+                     ctx.lineTo(cx + size + 3, cy - size - 3);
+                     ctx.moveTo(cx + size, cy + size);
+                     ctx.lineTo(cx + size + 3, cy + size + 3);
+                     ctx.stroke();
                  }
-            });
+             });
 
-    
-        
         ctx.strokeStyle = '#0f0';
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(100, 0); ctx.lineTo(100, GAME_HEIGHT); ctx.stroke();
@@ -239,6 +282,22 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
           const newObs: Obstacle = {
               id: Date.now(),
               type: ObstacleType.SPIKE_DOWN,
+              x: sp.x,
+              y: sp.y + sp.height,
+              width: sp.width,
+              height: sp.height,
+              passed: false
+          };
+          setObstacles([...obstacles, newObs]);
+          return;
+      }
+
+      // Special case: placed FAKE_SPIKE_DOWN under an existing FAKE_SPIKE if clicked
+      if (selectedTool === ObstacleType.FAKE_SPIKE_DOWN && existingIndex !== -1 && obstacles[existingIndex].type === ObstacleType.FAKE_SPIKE) {
+          const sp = obstacles[existingIndex];
+          const newObs: Obstacle = {
+              id: Date.now(),
+              type: ObstacleType.FAKE_SPIKE_DOWN,
               x: sp.x,
               y: sp.y + sp.height,
               width: sp.width,
@@ -379,13 +438,14 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                 {tools.map(tool => {
                     const Icon = tool.icon;
                     const isSpikeDown = tool.type === ObstacleType.SPIKE_DOWN;
+                    const isFakeSpikeDown = tool.type === ObstacleType.FAKE_SPIKE_DOWN;
                     return (
                         <button
                             key={tool.type}
                             onClick={() => setSelectedTool(tool.type)}
                             className={`flex flex-col items-center p-3 rounded transition-all w-20 ${selectedTool === tool.type ? 'bg-cyan-600 scale-105 shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}
                         >
-                            <div className={isSpikeDown ? 'transform rotate-180' : ''}>
+                            <div className={isSpikeDown || isFakeSpikeDown ? 'transform rotate-180' : ''}>
                                 <Icon size={24} style={{ color: tool.color }} />
                             </div>
                             <span className="text-xs mt-1 font-bold">{tool.label}</span>

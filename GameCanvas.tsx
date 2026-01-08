@@ -41,12 +41,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     rotation: 0,
     isJumping: false,
     isDead: false,
-    onPlatform: false
+    onPlatform: false,
+    gravityDirection: 1 // 1 for down, -1 for up
   });
   
   const obstacles = useRef<Obstacle[]>([]);
   const particles = useRef<Particle[]>([]);
   const cameraX = useRef(0);
+  const cameraY = useRef(0);
   const frameId = useRef<number>(0);
   const hasWon = useRef(false);
   
@@ -67,7 +69,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         rotation: 0,
         isJumping: false,
         isDead: false,
-        onPlatform: false
+        onPlatform: false,
+        gravityDirection: 1
       };
       cameraX.current = 0;
       hasWon.current = false;
@@ -257,14 +260,88 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.lineTo(cx - 6, cy - 2);
         ctx.closePath();
         ctx.fill();
-      } else if (obs.type === ObstacleType.FLOOR_GAP) {
-        ctx.clearRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
-        const grad = ctx.createLinearGradient(0, GROUND_HEIGHT, 0, GAME_HEIGHT);
-        grad.addColorStop(0, '#000');
-        grad.addColorStop(1, '#0f172a');
-        ctx.fillStyle = grad;
-        ctx.fillRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
-      }
+                 } else if (obs.type === ObstacleType.FLOOR_GAP) {
+                     ctx.clearRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
+                     const grad = ctx.createLinearGradient(0, GROUND_HEIGHT, 0, GAME_HEIGHT);
+                     grad.addColorStop(0, '#000');
+                     grad.addColorStop(1, '#0f172a');
+                     ctx.fillStyle = grad;
+                     ctx.fillRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
+                 } else if (obs.type === ObstacleType.DECOR_1) {
+                     ctx.fillStyle = '#10b981';
+                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                     ctx.strokeStyle = '#000';
+                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                 } else if (obs.type === ObstacleType.FAKE_SPIKE) {
+                     ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
+                     ctx.beginPath();
+                     ctx.moveTo(obs.x, obs.y + obs.height);
+                     ctx.lineTo(obs.x + obs.width / 2, obs.y);
+                     ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                     ctx.fill();
+                 } else if (obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
+                     ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
+                     ctx.beginPath();
+                     ctx.moveTo(obs.x, obs.y);
+                     ctx.lineTo(obs.x + obs.width, obs.y);
+                     ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
+                     ctx.closePath();
+                     ctx.fill();
+                 } else if (obs.type === ObstacleType.GRAVITY_UP) {
+                     ctx.fillStyle = COLORS.gravityUp;
+                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                     ctx.strokeStyle = '#000';
+                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                     // Draw up arrow
+                     ctx.fillStyle = '#000';
+                     const cx = obs.x + obs.width / 2;
+                     const cy = obs.y + obs.height / 2;
+                     ctx.beginPath();
+                     ctx.moveTo(cx, cy - 8);
+                     ctx.lineTo(cx + 4, cy - 4);
+                     ctx.lineTo(cx - 4, cy - 4);
+                     ctx.closePath();
+                     ctx.fill();
+                     ctx.fillRect(cx - 1, cy - 4, 2, 8);
+                 } else if (obs.type === ObstacleType.GRAVITY_NORMAL) {
+                     ctx.fillStyle = COLORS.gravityNormal;
+                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                     ctx.strokeStyle = '#000';
+                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                     // Draw down arrow
+                     ctx.fillStyle = '#000';
+                     const cx = obs.x + obs.width / 2;
+                     const cy = obs.y + obs.height / 2;
+                     ctx.beginPath();
+                     ctx.moveTo(cx, cy + 8);
+                     ctx.lineTo(cx + 4, cy + 4);
+                     ctx.lineTo(cx - 4, cy + 4);
+                     ctx.closePath();
+                     ctx.fill();
+                     ctx.fillRect(cx - 1, cy - 4, 2, 8);
+                 } else if (obs.type === ObstacleType.CUBE_PORTAL) {
+                     ctx.fillStyle = '#a855f7';
+                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                     ctx.strokeStyle = '#000';
+                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                     // Draw cube symbol
+                     ctx.fillStyle = '#000';
+                     const cx = obs.x + obs.width / 2;
+                     const cy = obs.y + obs.height / 2;
+                     const size = 6;
+                     ctx.fillRect(cx - size, cy - size, size * 2, size * 2);
+                     // 3D effect lines
+                     ctx.strokeStyle = '#fff';
+                     ctx.lineWidth = 1;
+                     ctx.beginPath();
+                     ctx.moveTo(cx - size, cy - size);
+                     ctx.lineTo(cx - size - 3, cy - size - 3);
+                     ctx.moveTo(cx + size, cy - size);
+                     ctx.lineTo(cx + size + 3, cy - size - 3);
+                     ctx.moveTo(cx + size, cy + size);
+                     ctx.lineTo(cx + size + 3, cy + size + 3);
+                     ctx.stroke();
+                 }
     });
 
     // Particles
@@ -281,13 +358,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.save();
       ctx.translate(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2);
       ctx.rotate((p.rotation * Math.PI) / 180);
-      
+
       ctx.shadowBlur = 15;
       ctx.shadowColor = playerColor;
-      
+
       ctx.fillStyle = playerColor;
       ctx.fillRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
-      
+
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
       ctx.strokeRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
@@ -385,24 +462,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         cameraX.current = p.x - 100;
 
         // Determine Floor Level
-        let floorY = GROUND_HEIGHT - PLAYER_SIZE;
-        
-        const overGap = obstacles.current.some(obs => 
+        let floorY = p.gravityDirection === 1 ? GROUND_HEIGHT - PLAYER_SIZE : 0;
+
+        const overGap = obstacles.current.some(obs =>
           obs.type === ObstacleType.FLOOR_GAP &&
-          p.x + PLAYER_SIZE > obs.x + 5 && 
+          p.x + PLAYER_SIZE > obs.x + 5 &&
           p.x < obs.x + obs.width - 5
         );
-        
+
         if (overGap) {
-          floorY = GAME_HEIGHT + 200;
+          floorY = p.gravityDirection === 1 ? GAME_HEIGHT + 200 : -200;
         }
 
         for (const obs of obstacles.current) {
-          if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK) {
+          if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
             if (p.x + PLAYER_SIZE > obs.x && p.x < obs.x + obs.width) {
-              const blockTop = obs.y - PLAYER_SIZE;
-              if (p.y <= blockTop + 15) {
-                if (blockTop < floorY) {
+              const blockTop = p.gravityDirection === 1 ? obs.y - PLAYER_SIZE : obs.y + obs.height;
+              const condition = p.gravityDirection === 1 ? p.y <= blockTop + 15 : p.y >= blockTop - 15;
+              if (condition) {
+                const better = p.gravityDirection === 1 ? blockTop < floorY : blockTop > floorY;
+                if (better) {
                   floorY = blockTop;
                 }
               }
@@ -411,15 +490,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
 
         // Vertical Movement
-        p.dy += GRAVITY * deltaTime;
+        p.dy += GRAVITY * p.gravityDirection * deltaTime;
         p.y += p.dy * deltaTime;
 
-        if (p.y >= floorY) {
+        const onFloor = p.gravityDirection === 1 ? p.y >= floorY : p.y <= floorY;
+        if (onFloor) {
           p.y = floorY;
           p.dy = 0;
           p.onPlatform = true;
           p.isJumping = false;
-          
+
           const snap = Math.round(p.rotation / 90) * 90;
           if (Math.abs(snap - p.rotation) > 1) {
             p.rotation += (snap - p.rotation) * 0.2 * deltaTime;
@@ -428,15 +508,28 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         } else {
           p.onPlatform = false;
-          p.rotation += 6 * deltaTime;
+          p.rotation += 6 * deltaTime * p.gravityDirection;
+        }
+
+        // Ceiling collision
+        if (p.gravityDirection === 1) {
+          if (p.y <= 0) {
+            p.y = 0;
+            p.dy = 0;
+          }
+        } else {
+          if (p.y >= GROUND_HEIGHT - PLAYER_SIZE) {
+            p.y = GROUND_HEIGHT - PLAYER_SIZE;
+            p.dy = 0;
+          }
         }
 
         // Jump Handling
         if (p.onPlatform && (isHoldingJump.current || jumpQueued.current)) {
-          p.dy = JUMP_FORCE;
+          p.dy = JUMP_FORCE * p.gravityDirection;
           p.isJumping = true;
           p.onPlatform = false;
-          p.y -= 2;
+          p.y -= 2 * p.gravityDirection;
           jumpQueued.current = false;
         }
 
@@ -452,6 +545,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             p.y + PLAYER_SIZE - hitBoxBuffer > obs.y + hitBoxBuffer &&
             p.y + hitBoxBuffer < obs.y + obs.height - hitBoxBuffer
           ) {
+            if (obs.type === ObstacleType.GRAVITY_UP) {
+              p.gravityDirection = -1;
+              continue;
+            }
+
+            if (obs.type === ObstacleType.GRAVITY_NORMAL) {
+              p.gravityDirection = 1;
+              continue;
+            }
+
             if (p.y > GROUND_HEIGHT && obs.type !== ObstacleType.FLOOR_GAP) {
               handleDeath();
               return;
@@ -460,6 +563,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             if (obs.type === ObstacleType.SPIKE || obs.type === ObstacleType.SPIKE_DOWN) {
               handleDeath();
               return;
+            }
+
+            // Fake spikes are visual only, no collision
+            if (obs.type === ObstacleType.FAKE_SPIKE || obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
+              continue;
             }
 
             if (obs.type === ObstacleType.BOUNCER) {
@@ -489,7 +597,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           hasWon.current = true;
           onWin();
         }
-        if (p.y > GAME_HEIGHT + 50) {
+        if (p.gravityDirection === 1 && p.y > GAME_HEIGHT + 50 || p.gravityDirection === -1 && p.y < -50) {
           handleDeath();
         }
 
@@ -546,7 +654,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           >
             ÇIKIŞ
           </button>
-          <div className="absolute top-4 right-4 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
             {isTestMode ? 'TEST MODE' : `Deneme #${attempt} — ${progress}%`}
           </div>
         </>

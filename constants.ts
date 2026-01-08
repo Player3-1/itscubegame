@@ -20,7 +20,9 @@ export const COLORS = {
   halfBlock: '#f97316', // Orange
   passThrough: 'rgba(148,163,184,0.45)', // Soluk / içinden geçilebilir blok rengi
   bouncer: '#06b6d4', // Zıplatıcı blok rengi (cyan)
-  admin: '#00f0ff', // Changed from dark purple to cyan for visibility
+  gravityUp: '#ff6b6b', // Kırmızı - yukarı yer çekimi
+  gravityNormal: '#4ecdc4', // Turkuaz - normal yer çekimi
+  admin: '#4B0082', // Dark purple
 };
 
 // Skins removed — colors handled centrally via `COLORS.admin`

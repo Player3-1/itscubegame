@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { GameCanvas } from '../GameCanvas';
-import LevelEditor from '../LevelEditor';
+import { GameCanvas } from './GameCanvas';
+import LevelEditor from './LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
 import { ADMIN_PASSWORD, COLORS } from './constants.ts';
 import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy } from 'lucide-react';
@@ -33,6 +33,7 @@ const App: React.FC = () => {
     const [showAssignDifficulty, setShowAssignDifficulty] = useState(false);
     const [assignLevelId, setAssignLevelId] = useState('');
     const [assignDifficulty, setAssignDifficulty] = useState<LevelMetadata['difficulty']>('Unlisted');
+    const [assignStarRating, setAssignStarRating] = useState(3);
     const [showSettings, setShowSettings] = useState(false);
   const [autoRespawn, setAutoRespawn] = useState<boolean>(() => {
       const v = localStorage.getItem('nd_auto_respawn');
@@ -40,6 +41,7 @@ const App: React.FC = () => {
   });  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0); // Progress %
   const [levelSearch, setLevelSearch] = useState("");
+  const [levelView, setLevelView] = useState<'all' | 'new' | 'uncompleted'>('all');
 
   // Login Form State
   const [isRegistering, setIsRegistering] = useState(false);
@@ -333,14 +335,28 @@ const App: React.FC = () => {
      setGameState(GameState.LEVEL_SELECT);
   };
 
-  const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty']) => {
+  const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty'], starRating?: number) => {
       if (!user?.isAdmin) return;
-      
-    const starsMap = { 'Unlisted': 0, 'Easy': 2, 'Normal': 4, 'Hard': 6, 'Insane': 8, 'Extreme': 12 };
-      
+
+      const baseStarsMap = { 'Unlisted': 0, 'Easy': 2, 'Normal': 4, 'Hard': 6, 'Insane': 8, 'Extreme': 12 };
+      let calculatedStars = baseStarsMap[diff] || 0;
+
+      if (diff !== 'Unlisted' && starRating !== undefined) {
+          if (starRating === 0 || starRating === 1) {
+              calculatedStars -= 1;
+          } else if (starRating === 2) {
+              // Normal, no change
+          } else if (starRating === 3) {
+              calculatedStars += 1;
+          } else if (diff === 'Extreme' && starRating === 4) {
+              calculatedStars = 15;
+          }
+          calculatedStars = Math.max(0, calculatedStars); // Ensure non-negative
+      }
+
       const updatedLevels = levels.map(l => {
           if (l.id === levelId) {
-             return { ...l, difficulty: diff, stars: starsMap[diff] };
+             return { ...l, difficulty: diff, stars: calculatedStars };
           }
           return l;
       });
@@ -473,6 +489,8 @@ const App: React.FC = () => {
     { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30 },
     // 60 yıldız
     { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60 },
+    // Admin özel
+    { id: 'admin-special', label: 'Admin Özel', color: '#4B0082', cost: 0, adminOnly: true },
   ];
 
   const faceOptions = [
@@ -621,6 +639,22 @@ const App: React.FC = () => {
                                     <option value="Extreme">Extreme</option>
                                 </select>
                             </div>
+                            {assignDifficulty !== 'Unlisted' && (
+                                <div className="mb-4">
+                                    <label className="text-sm text-slate-400">Yıldız Derecesi</label>
+                                    <div className="flex gap-1 mt-1">
+                                        {[1, 2, 3, ...(assignDifficulty === 'Extreme' ? [4] : [])].map(star => (
+                                            <button
+                                                key={star}
+                                                onClick={() => setAssignStarRating(star)}
+                                                className={`w-8 h-8 ${assignStarRating >= star ? 'text-yellow-400' : 'text-slate-600'} hover:text-yellow-300`}
+                                            >
+                                                ★
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div className="flex gap-2 justify-end">
                                 <button onClick={() => setShowAssignDifficulty(false)} className="px-3 sm:px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm sm:text-base">Vazgeç</button>
                                 <button onClick={() => {
@@ -902,6 +936,13 @@ const App: React.FC = () => {
         </div>
       );
   } else if (gameState === GameState.LEADERBOARD) {
+      const scrollToBottom = () => {
+          const element = document.getElementById('leaderboard-list');
+          if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          }
+      };
+
       return (
           <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center">
              <div className="w-full max-w-2xl">
@@ -911,7 +952,7 @@ const App: React.FC = () => {
                     <div className="w-6 sm:w-10"></div>
                  </div>
 
-                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                 <div id="leaderboard-list" className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden max-h-[70vh] overflow-y-auto">
                  {leaderboardDb.length === 0 && (
                          <div className="p-4 sm:p-8 text-center text-slate-500 text-sm sm:text-base">Henüz kimse sıralamaya girmedi.</div>
                      )}
@@ -1020,7 +1061,7 @@ const App: React.FC = () => {
                     </button>
                     {user?.isAdmin && (
                         <>
-                        <button onClick={() => { setShowAssignDifficulty(true); setAssignLevelId(''); setAssignDifficulty('Unlisted'); }} className="flex items-center gap-2 bg-yellow-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-bold hover:bg-yellow-600 hover:scale-105 transition shadow-lg text-sm sm:text-base">
+                        <button onClick={() => { setShowAssignDifficulty(true); setAssignLevelId(''); setAssignDifficulty('Unlisted'); setAssignStarRating(3); }} className="flex items-center gap-2 bg-yellow-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-bold hover:bg-yellow-600 hover:scale-105 transition shadow-lg text-sm sm:text-base">
                             <ShieldAlert size={14} className="sm:w-4.5 sm:h-4.5"/> ZORLUK ATA
                         </button>
                         </>
@@ -1124,6 +1165,19 @@ const App: React.FC = () => {
                                                 <option value="Insane">Insane (8*)</option>
                                                 <option value="Extreme">Extreme (12*)</option>
                                              </select>
+                                             {level.difficulty !== 'Unlisted' && (
+                                                 <div className="flex gap-0.5">
+                                                     {[1, 2, 3, ...(level.difficulty === 'Extreme' ? [4] : [])].map(star => (
+                                                         <button
+                                                             key={star}
+                                                             onClick={() => updateDifficulty(level.id, level.difficulty, star)}
+                                                             className={`w-4 h-4 text-xs ${level.stars >= (level.difficulty === 'Extreme' && star === 4 ? 15 : (level.difficulty === 'Easy' ? 2 : level.difficulty === 'Normal' ? 4 : level.difficulty === 'Hard' ? 6 : level.difficulty === 'Insane' ? 8 : 12) + (star === 1 || star === 0 ? -1 : star === 3 ? 1 : 0)) ? 'text-yellow-400' : 'text-slate-600'} hover:text-yellow-300`}
+                                                         >
+                                                             ★
+                                                         </button>
+                                                     ))}
+                                                 </div>
+                                             )}
                                          </div>
                                      )}
 
