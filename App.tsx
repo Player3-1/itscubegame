@@ -543,7 +543,7 @@ const App: React.FC = () => {
     // 60 yıldız
     { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60 },
     // Admin only
-    { id: 'admin', label: 'Admin', color: '#ff1493', cost: 0, adminOnly: true },
+    { id: 'admin', label: 'Admin', color: '#800080', cost: 0, adminOnly: true },
   ];
 
   const faceOptions = [
@@ -552,6 +552,7 @@ const App: React.FC = () => {
     { id: 'angry', label: 'Sinirli', cost: 10, adminOnly: false },
     { id: 'surprised', label: 'Şaşkın', cost: 15, adminOnly: false },
     { id: 'cool', label: 'Havalı', cost: 50, adminOnly: false },
+    { id: 'admin', label: 'Admin', cost: 0, adminOnly: true },
   ];
 
   const handleSelectColor = (colorHex: string, cost: number, adminOnly?: boolean) => {
@@ -1125,7 +1126,7 @@ const App: React.FC = () => {
                     )}
                  </div>
 
-                 <div className="flex gap-2 justify-center mt-2">
+                 <div className="flex gap-2 justify-center mt-1">
                     <button
                        onClick={() => setLevelView('new')}
                        className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'new' ? 'bg-cyan-600 text-black' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
@@ -1193,7 +1194,7 @@ const App: React.FC = () => {
                                  <div className="flex-1">
                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                                         <h3 className="text-lg sm:text-xl font-bold font-orbitron">
-                                            {levelView === 'hard' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1}</span>}
+                                            {levelView !== 'all' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1} </span>}
                                             {level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span>
                                         </h3>
                                         <div className="flex items-center gap-2 mt-1">
@@ -1259,7 +1260,7 @@ const App: React.FC = () => {
                                                      ))}
                                                  </div>
                                              )}
-                                             {levelView === 'all' && !hardestLevelIds.includes(level.id) && hardestLevelIds.length < 10 && (
+                                             {levelView === 'all' && !hardestLevelIds.includes(level.id) && hardestLevelIds.length < 11 && (
                                                  <button
                                                      onClick={() => { setShowAddToHardest(true); setAddLevelId(level.id); setAddPosition(1); }}
                                                      className="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-xs font-bold text-white"
