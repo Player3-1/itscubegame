@@ -511,13 +511,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           p.rotation += 6 * deltaTime * p.gravityDirection;
         }
 
-        // Ceiling collision
-        if (p.gravityDirection === 1) {
-          if (p.y <= 0) {
-            p.y = 0;
-            p.dy = 0;
-          }
-        } else {
+        // Ceiling collision removed for normal gravity
+        if (p.gravityDirection === -1) {
           if (p.y >= GROUND_HEIGHT - PLAYER_SIZE) {
             p.y = GROUND_HEIGHT - PLAYER_SIZE;
             p.dy = 0;
