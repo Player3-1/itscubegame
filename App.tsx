@@ -27,9 +27,10 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [levels, setLevels] = useState<LevelMetadata[]>([]);
     // show id next to name
-  
+
     // Play attempt tracking
     const [currentAttempt, setCurrentAttempt] = useState(0);
+    const [hardestLevelIds, setHardestLevelIds] = useState<string[]>([]);
     const [showAssignDifficulty, setShowAssignDifficulty] = useState(false);
     const [assignLevelId, setAssignLevelId] = useState('');
     const [assignDifficulty, setAssignDifficulty] = useState<LevelMetadata['difficulty']>('Unlisted');
@@ -41,7 +42,7 @@ const App: React.FC = () => {
   });  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0); // Progress %
   const [levelSearch, setLevelSearch] = useState("");
-  const [levelView, setLevelView] = useState<'all' | 'new' | 'uncompleted'>('all');
+  const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
 
   // Login Form State
   const [isRegistering, setIsRegistering] = useState(false);
@@ -80,9 +81,32 @@ const App: React.FC = () => {
     };
 
     loadLevels();
-  }, []);
+   }, []);
 
-    // nothing here (hard list removed)
+   // Load Hardest Levels
+   useEffect(() => {
+     const loadHardest = async () => {
+       try {
+         const snap = await getDocs(collection(db, 'hardest'));
+         if (!snap.empty) {
+           const data = snap.docs[0].data() as { ids: string[] };
+           setHardestLevelIds(data.ids);
+           localStorage.setItem('nd_hardest_levels', JSON.stringify(data.ids));
+         }
+       } catch (err) {
+         console.error('Firestore hardest load error:', err);
+       }
+
+       const stored = localStorage.getItem('nd_hardest_levels');
+       if (stored) {
+         setHardestLevelIds(JSON.parse(stored));
+       }
+     };
+
+     loadHardest();
+   }, []);
+
+     // nothing here (hard list removed)
 
   // Load Users DB from Firestore into localStorage (for existing helper usage)
   useEffect(() => {
@@ -345,6 +369,20 @@ const App: React.FC = () => {
        }
      })();
      setGameState(GameState.LEVEL_SELECT);
+  };
+
+  const updateHardestLevels = (newIds: string[]) => {
+    setHardestLevelIds(newIds);
+    localStorage.setItem('nd_hardest_levels', JSON.stringify(newIds));
+    // Mirror to Firestore
+    (async () => {
+      try {
+        const ref = doc(db, 'hardest', 'list');
+        await setDoc(ref, { ids: newIds });
+      } catch (err) {
+        console.error('Firestore hardest save error:', err);
+      }
+    })();
   };
 
   const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty'], starRating?: number) => {
@@ -871,7 +909,7 @@ const App: React.FC = () => {
                       return (
                         <button
                           key={face.id}
-                          onClick={() => handleSelectFace(face.id, face.cost, face.adminOnly)}
+                          onClick={() => handleSelectFace(face.id, face.cost)}
                           className={`px-2 sm:px-3 py-2 rounded-lg text-xs font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] border
                             ${isSelected ? 'bg-cyan-600 border-cyan-400' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}
                             ${isLocked ? 'opacity-60' : ''}`}
@@ -1052,6 +1090,10 @@ const App: React.FC = () => {
   }
 
   if (gameState === GameState.LEVEL_SELECT) {
+      const displayedLevels = levelView === 'hard' ? levels.filter(l => hardestLevelIds.includes(l.id)) :
+        levelView === 'new' ? [...levels].sort((a, b) => b.levelNumber - a.levelNumber) :
+        levels;
+
       return (
           <div className="min-h-screen bg-slate-900 text-white p-2 sm:p-4">
               <div className="max-w-full sm:max-w-4xl mx-auto">
@@ -1077,6 +1119,21 @@ const App: React.FC = () => {
                     )}
                  </div>
 
+                 <div className="flex gap-2 justify-center mt-2">
+                    <button
+                       onClick={() => setLevelView('new')}
+                       className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'new' ? 'bg-cyan-600 text-black' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+                    >
+                       En Yeni
+                    </button>
+                    <button
+                       onClick={() => setLevelView('hard')}
+                       className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'hard' ? 'bg-red-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+                    >
+                       En Zor
+                    </button>
+                 </div>
+
                  {/* Arama çubuğu */}
                  <div className="mb-2 sm:mb-4 flex justify-center">
                     <input
@@ -1095,7 +1152,7 @@ const App: React.FC = () => {
                              Henüz yayınlanmış bir bölüm yok. İlk bölümü sen yap!
                          </div>
                      )}
-                     {levels
+                     {displayedLevels
                                                 .filter(level => {
                                                         if (!levelSearch.trim()) return true;
                                                         const q = levelSearch.toLowerCase();
@@ -1187,6 +1244,14 @@ const App: React.FC = () => {
                                                      ))}
                                                  </div>
                                              )}
+                                             {levelView === 'all' && !hardestLevelIds.includes(level.id) && hardestLevelIds.length < 10 && (
+                                                 <button
+                                                     onClick={() => updateHardestLevels([...hardestLevelIds, level.id])}
+                                                     className="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-xs font-bold text-white"
+                                                 >
+                                                     En Zora Ekle
+                                                 </button>
+                                             )}
                                          </div>
                                      )}
 
@@ -1196,6 +1261,14 @@ const App: React.FC = () => {
                                      >
                                          <Play size={20} className="sm:w-6 sm:h-6" fill="currentColor"/>
                                      </button>
+                                     {levelView === 'hard' && user?.isAdmin && (
+                                         <button
+                                             onClick={() => updateHardestLevels(hardestLevelIds.filter(id => id !== level.id))}
+                                             className="bg-red-600 hover:bg-red-500 p-2 sm:p-3 rounded-full text-white transition hover:scale-110 shadow-lg"
+                                         >
+                                             Sil
+                                         </button>
+                                     )}
                                  </div>
                              </div>
                          )
