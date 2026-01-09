@@ -22,9 +22,8 @@ export const COLORS = {
   bouncer: '#06b6d4', // Zıplatıcı blok rengi (cyan)
   gravityUp: '#ff6b6b', // Kırmızı - yukarı yer çekimi
   gravityNormal: '#4ecdc4', // Turkuaz - normal yer çekimi
-  admin: '#4B0082', // Dark purple
 };
 
-// Skins removed — colors handled centrally via `COLORS.admin`
+// Skins removed — colors handled centrally via `COLORS.player`
 
 // EMOTES and expression support removed per user request

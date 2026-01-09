@@ -408,7 +408,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                   }}
                   onDeath={() => setIsTesting(false)}
                   onWin={() => setIsTesting(false)}
-                  playerColor={COLORS.admin}
+                  playerColor={COLORS.player}
                   isTestMode={true}
               />
             </div>

@@ -25,7 +25,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   levelData, 
   onDeath, 
   onWin, 
-  playerColor = COLORS.admin, 
+  playerColor = COLORS.player,
   playerFace = 'default',
   isTestMode = false, 
   attempt = 0, 

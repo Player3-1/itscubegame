@@ -165,7 +165,7 @@ const App: React.FC = () => {
                       totalStars: 0,
                       completedLevels: [],
                       likedLevels: [],
-                      selectedColor: COLORS.admin
+                      selectedColor: COLORS.player
                   };
                   const usersDb = getUsersDB();
                   usersDb.push(defaultAdmin);
@@ -186,7 +186,7 @@ const App: React.FC = () => {
                       totalStars: 0,
                       completedLevels: [],
                       likedLevels: [],
-                      selectedColor: COLORS.admin
+                      selectedColor: COLORS.player
                   };
                   usersDb.push(defaultAdmin);
                   localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
@@ -255,7 +255,7 @@ const App: React.FC = () => {
             totalStars: 0,
             completedLevels: [],
             likedLevels: [],
-                selectedColor: COLORS.admin
+                selectedColor: COLORS.player
          };
          
          saveUserFull(newUser);
@@ -501,21 +501,22 @@ const App: React.FC = () => {
     { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30 },
     // 60 yıldız
     { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60 },
-    // Admin özel
-    { id: 'admin-special', label: 'Admin Özel', color: '#4B0082', cost: 0, adminOnly: true },
   ];
 
   const faceOptions = [
-    { id: 'default', label: 'Klasik', cost: 0 },
-    { id: 'happy', label: 'Mutlu', cost: 0 },
-    { id: 'angry', label: 'Sinirli', cost: 10 },
-    { id: 'surprised', label: 'Şaşkın', cost: 15 },
-    { id: 'cool', label: 'Havalı', cost: 50 },
-    { id: 'admin', label: 'Admin', cost: 0, adminOnly: true },
+    { id: 'default', label: 'Klasik', cost: 0, adminOnly: false },
+    { id: 'happy', label: 'Mutlu', cost: 0, adminOnly: false },
+    { id: 'angry', label: 'Sinirli', cost: 10, adminOnly: false },
+    { id: 'surprised', label: 'Şaşkın', cost: 15, adminOnly: false },
+    { id: 'cool', label: 'Havalı', cost: 50, adminOnly: false },
   ];
 
-  const handleSelectColor = (colorHex: string, cost: number) => {
+  const handleSelectColor = (colorHex: string, cost: number, adminOnly?: boolean) => {
     if (!user) return;
+    if (adminOnly && user.name !== 'dgoa') {
+      alert('Bu renk sadece dgoa için!');
+      return;
+    }
     if ((user.totalStars || 0) < cost) {
       alert(`${cost} yıldız gerekiyor!`);
       return;
@@ -527,12 +528,8 @@ const App: React.FC = () => {
     saveUserFull(updatedUser);
   };
 
-  const handleSelectFace = (faceId: string, cost: number, adminOnly?: boolean) => {
+  const handleSelectFace = (faceId: string, cost: number) => {
     if (!user) return;
-    if (adminOnly && !user.isAdmin) {
-      alert('Bu yüz sadece admin için!');
-      return;
-    }
     if ((user.totalStars || 0) < cost) {
       alert(`${cost} yıldız gerekiyor!`);
       return;
@@ -760,7 +757,7 @@ const App: React.FC = () => {
           </div>
       );
   } else if (gameState === GameState.CHARACTER_SELECT) {
-      const currentColor = user?.selectedColor || COLORS.admin;
+      const currentColor = user?.selectedColor || COLORS.player;
       const currentFace = user?.selectedFace || 'default';
       const stars = user?.totalStars || 0;
 
@@ -917,7 +914,7 @@ const App: React.FC = () => {
                             ${locked ? 'opacity-60' : ''}`}
                         >
                           <div
-                            className="w-6 h-6 sm:w-8 sm:h-8 rounded border border-black"
+                            className="w-6 h-6 sm:w-8 sm:w-8 rounded border border-black"
                             style={{ backgroundColor: opt.color }}
                           />
                           <span className="text-[10px] sm:text-[11px] font-bold">{opt.label}</span>
@@ -973,7 +970,7 @@ const App: React.FC = () => {
                              <div className="flex items-center gap-2 sm:gap-4">
                                  <div className="font-black text-lg sm:text-2xl w-6 sm:w-8 text-slate-500 italic">#{idx + 1}</div>
                                 <div className="flex flex-col items-center">
-                                     <div className="w-6 h-6 sm:w-8 sm:h-8 border border-black relative overflow-hidden" style={{backgroundColor: entry.selectedColor || COLORS.admin}}>
+                                     <div className="w-6 h-6 sm:w-8 sm:h-8 border border-black relative overflow-hidden" style={{backgroundColor: entry.selectedColor || COLORS.player}}>
                                        <canvas
                                          ref={(canvas) => {
                                            if (canvas) {
@@ -1241,7 +1238,7 @@ const App: React.FC = () => {
                  }
              }}
              onWin={handleLevelComplete}
-             playerColor={user?.selectedColor || COLORS.admin}
+             playerColor={user?.selectedColor || COLORS.player}
              playerFace={user?.selectedFace || 'default'}
              attempt={currentAttempt}
              progress={score}
@@ -1290,6 +1287,7 @@ const App: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setGameState(GameState.LEVEL_SELECT)}
+                        onTouchStart={() => setGameState(GameState.LEVEL_SELECT)}
                         className="bg-slate-600 hover:bg-slate-500 px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold font-orbitron transition hover:scale-105 text-sm sm:text-base"
                       >
                           MENÜ
