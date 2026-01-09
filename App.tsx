@@ -56,35 +56,35 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState("");
 
   // Load Levels Data (prefer Firestore, fallback to localStorage)
+  const loadLevels = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'levels'));
+      if (!snap.empty) {
+        const remoteLevels: LevelMetadata[] = snap.docs.map((d) => d.data() as LevelMetadata);
+        // Ensure levelNumber exists for older entries
+        const normalized = remoteLevels.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
+        setLevels(normalized);
+        localStorage.setItem('nd_levels', JSON.stringify(normalized));
+        return;
+      }
+    } catch (err) {
+      console.error('Firestore level load error:', err);
+    }
+
+    const storedLevels = localStorage.getItem('nd_levels');
+    if (storedLevels) {
+      const parsed = JSON.parse(storedLevels) as LevelMetadata[];
+      const normalized = parsed.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
+      setLevels(normalized);
+    } else {
+      setLevels(DEFAULT_LEVELS);
+      localStorage.setItem('nd_levels', JSON.stringify(DEFAULT_LEVELS));
+    }
+  };
+
   useEffect(() => {
-    const loadLevels = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'levels'));
-        if (!snap.empty) {
-                    const remoteLevels: LevelMetadata[] = snap.docs.map((d) => d.data() as LevelMetadata);
-                    // Ensure levelNumber exists for older entries
-                    const normalized = remoteLevels.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
-                    setLevels(normalized);
-                    localStorage.setItem('nd_levels', JSON.stringify(normalized));
-          return;
-        }
-      } catch (err) {
-        console.error('Firestore level load error:', err);
-      }
-
-      const storedLevels = localStorage.getItem('nd_levels');
-            if (storedLevels) {
-                const parsed = JSON.parse(storedLevels) as LevelMetadata[];
-                const normalized = parsed.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
-                setLevels(normalized);
-      } else {
-        setLevels(DEFAULT_LEVELS);
-        localStorage.setItem('nd_levels', JSON.stringify(DEFAULT_LEVELS));
-      }
-    };
-
     loadLevels();
-   }, []);
+  }, []);
 
    // Load Hardest Levels
    useEffect(() => {
@@ -1138,6 +1138,12 @@ const App: React.FC = () => {
                     >
                        En Zor
                     </button>
+                    <button
+                       onClick={loadLevels}
+                       className="px-4 py-2 rounded-lg font-bold transition bg-gray-700 hover:bg-gray-600 text-white"
+                    >
+                       Yenile
+                    </button>
                  </div>
 
                  {/* Arama çubuğu */}
@@ -1187,7 +1193,7 @@ const App: React.FC = () => {
                                  <div className="flex-1">
                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                                         <h3 className="text-lg sm:text-xl font-bold font-orbitron">
-                                            {levelView === 'new' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1} </span>}
+                                            {levelView === 'hard' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1} </span>}
                                             {level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span>
                                         </h3>
                                         <div className="flex items-center gap-2 mt-1">
