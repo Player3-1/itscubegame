@@ -31,6 +31,9 @@ const App: React.FC = () => {
     // Play attempt tracking
     const [currentAttempt, setCurrentAttempt] = useState(0);
     const [hardestLevelIds, setHardestLevelIds] = useState<string[]>([]);
+    const [showAddToHardest, setShowAddToHardest] = useState(false);
+    const [addLevelId, setAddLevelId] = useState('');
+    const [addPosition, setAddPosition] = useState(1);
     const [showAssignDifficulty, setShowAssignDifficulty] = useState(false);
     const [assignLevelId, setAssignLevelId] = useState('');
     const [assignDifficulty, setAssignDifficulty] = useState<LevelMetadata['difficulty']>('Unlisted');
@@ -42,7 +45,7 @@ const App: React.FC = () => {
   });  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0); // Progress %
   const [levelSearch, setLevelSearch] = useState("");
-  const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
+  const [levelView, setLevelView] = useState<'all' | 'new' | 'old' | 'hard'>('all');
 
   // Login Form State
   const [isRegistering, setIsRegistering] = useState(false);
@@ -539,6 +542,8 @@ const App: React.FC = () => {
     { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30 },
     // 60 yıldız
     { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60 },
+    // Admin only
+    { id: 'admin', label: 'Admin', color: '#ff1493', cost: 0, adminOnly: true },
   ];
 
   const faceOptions = [
@@ -1090,8 +1095,9 @@ const App: React.FC = () => {
   }
 
   if (gameState === GameState.LEVEL_SELECT) {
-      const displayedLevels = levelView === 'hard' ? levels.filter(l => hardestLevelIds.includes(l.id)) :
+      const displayedLevels = levelView === 'hard' ? hardestLevelIds.map(id => levels.find(l => l.id === id)).filter(Boolean) as LevelMetadata[] :
         levelView === 'new' ? [...levels].sort((a, b) => b.levelNumber - a.levelNumber) :
+        levelView === 'old' ? [...levels].sort((a, b) => a.levelNumber - b.levelNumber) :
         levels;
 
       return (
@@ -1125,6 +1131,12 @@ const App: React.FC = () => {
                        className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'new' ? 'bg-cyan-600 text-black' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
                     >
                        En Yeni
+                    </button>
+                    <button
+                       onClick={() => setLevelView('old')}
+                       className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'old' ? 'bg-green-600 text-black' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+                    >
+                       En Eski
                     </button>
                     <button
                        onClick={() => setLevelView('hard')}
@@ -1180,7 +1192,10 @@ const App: React.FC = () => {
                              <div key={level.id} className="bg-slate-800 p-2 sm:p-4 rounded-xl border border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:border-slate-500 transition group gap-2 sm:gap-0">
                                  <div className="flex-1">
                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                                        <h3 className="text-lg sm:text-xl font-bold font-orbitron">{level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span></h3>
+                                        <h3 className="text-lg sm:text-xl font-bold font-orbitron">
+                                            {levelView === 'hard' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1}</span>}
+                                            {level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span>
+                                        </h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             {/* Removed background and ground color previews */}
                                         </div>
@@ -1246,7 +1261,7 @@ const App: React.FC = () => {
                                              )}
                                              {levelView === 'all' && !hardestLevelIds.includes(level.id) && hardestLevelIds.length < 10 && (
                                                  <button
-                                                     onClick={() => updateHardestLevels([...hardestLevelIds, level.id])}
+                                                     onClick={() => { setShowAddToHardest(true); setAddLevelId(level.id); setAddPosition(1); }}
                                                      className="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-xs font-bold text-white"
                                                  >
                                                      En Zora Ekle
@@ -1276,7 +1291,43 @@ const App: React.FC = () => {
                  </div>
               </div>
 
-                 {/* SHOP: intentionally accessible from menu */}
+              {showAddToHardest && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                      <div className="absolute inset-0 bg-black/60" onClick={() => setShowAddToHardest(false)} />
+                      <div className="bg-slate-800 p-4 sm:p-6 rounded-lg z-10 w-full max-w-md border border-slate-700">
+                          <h3 className="text-xl sm:text-2xl font-bold mb-4">En Zor Listesine Ekle</h3>
+                          <div className="mb-4">
+                              <label className="text-sm text-slate-400">Pozisyon (1-{hardestLevelIds.length + 1})</label>
+                              <select
+                                  className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1"
+                                  value={addPosition}
+                                  onChange={(e) => setAddPosition(Number(e.target.value))}
+                              >
+                                  {Array.from({ length: hardestLevelIds.length + 1 }, (_, i) => i + 1).map(pos => (
+                                      <option key={pos} value={pos}>{pos}</option>
+                                  ))}
+                              </select>
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                              <button onClick={() => setShowAddToHardest(false)} className="px-3 sm:px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm sm:text-base">Vazgeç</button>
+                              <button
+                                  onClick={() => {
+                                      const newIds = [...hardestLevelIds];
+                                      newIds.splice(addPosition - 1, 0, addLevelId);
+                                      if (newIds.length > 10) newIds.pop();
+                                      updateHardestLevels(newIds);
+                                      setShowAddToHardest(false);
+                                  }}
+                                  className="px-3 sm:px-4 py-2 rounded bg-red-600 hover:bg-red-500 text-white text-sm sm:text-base"
+                              >
+                                  Ekle
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              {/* SHOP: intentionally accessible from menu */}
                  {false}
           </div>
       );
