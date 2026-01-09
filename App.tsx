@@ -1194,7 +1194,7 @@ const App: React.FC = () => {
                                  <div className="flex-1">
                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                                         <h3 className="text-lg sm:text-xl font-bold font-orbitron">
-                                            {levelView !== 'all' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1} </span>}
+                                            {levelView === 'new' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1} </span>}
                                             {level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span>
                                         </h3>
                                         <div className="flex items-center gap-2 mt-1">
