@@ -572,8 +572,12 @@ const App: React.FC = () => {
     saveUserFull(updatedUser);
   };
 
-  const handleSelectFace = (faceId: string, cost: number) => {
+  const handleSelectFace = (faceId: string, cost: number, adminOnly?: boolean) => {
     if (!user) return;
+    if (adminOnly && user.name !== 'dgoa') {
+      alert('Bu yüz sadece dgoa için!');
+      return;
+    }
     if ((user.totalStars || 0) < cost) {
       alert(`${cost} yıldız gerekiyor!`);
       return;
@@ -915,7 +919,7 @@ const App: React.FC = () => {
                       return (
                         <button
                           key={face.id}
-                          onClick={() => handleSelectFace(face.id, face.cost)}
+                          onClick={() => handleSelectFace(face.id, face.cost, face.adminOnly)}
                           className={`px-2 sm:px-3 py-2 rounded-lg text-xs font-bold flex flex-col items-center min-w-[80px] sm:min-w-[90px] border
                             ${isSelected ? 'bg-cyan-600 border-cyan-400' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}
                             ${isLocked ? 'opacity-60' : ''}`}
