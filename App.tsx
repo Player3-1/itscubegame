@@ -45,7 +45,7 @@ const App: React.FC = () => {
   });  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0); // Progress %
   const [levelSearch, setLevelSearch] = useState("");
-  const [levelView, setLevelView] = useState<'all' | 'new' | 'old' | 'hard'>('all');
+  const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
 
   // Login Form State
   const [isRegistering, setIsRegistering] = useState(false);
@@ -1098,7 +1098,6 @@ const App: React.FC = () => {
   if (gameState === GameState.LEVEL_SELECT) {
       const displayedLevels = levelView === 'hard' ? hardestLevelIds.map(id => levels.find(l => l.id === id)).filter(Boolean) as LevelMetadata[] :
         levelView === 'new' ? [...levels].sort((a, b) => b.levelNumber - a.levelNumber) :
-        levelView === 'old' ? [...levels].sort((a, b) => a.levelNumber - b.levelNumber) :
         levels;
 
       return (
@@ -1128,16 +1127,10 @@ const App: React.FC = () => {
 
                  <div className="flex gap-2 justify-center mt-1">
                     <button
-                       onClick={() => setLevelView('new')}
+                       onClick={() => setLevelView(levelView === 'new' ? 'all' : 'new')}
                        className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'new' ? 'bg-cyan-600 text-black' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
                     >
                        En Yeni
-                    </button>
-                    <button
-                       onClick={() => setLevelView('old')}
-                       className={`px-4 py-2 rounded-lg font-bold transition ${levelView === 'old' ? 'bg-green-600 text-black' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
-                    >
-                       En Eski
                     </button>
                     <button
                        onClick={() => setLevelView('hard')}

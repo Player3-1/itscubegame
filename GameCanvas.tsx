@@ -577,7 +577,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               continue;
             }
 
-            if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK) {
+            if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
               if (Math.abs((p.y + PLAYER_SIZE) - obs.y) < 5) {
                 continue;
               }
