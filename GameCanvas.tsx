@@ -413,11 +413,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.lineWidth = 2;
         ctx.stroke();
       } else if (playerFace === 'admin') {
-        // admin-only: cute smiling cube
-        // Little eyes
-        ctx.fillRect(-4, -4, 3, 3);
-        ctx.fillRect(1, -4, 3, 3);
-        // Tiny smiling mouth
+        // small smile
+        ctx.fillRect(-7, -7, 5, 5);
+        ctx.fillRect(2, -7, 5, 5);
         ctx.beginPath();
         ctx.arc(0, 3, 3, 0, Math.PI);
         ctx.strokeStyle = '#000';

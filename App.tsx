@@ -529,22 +529,22 @@ const App: React.FC = () => {
   // --- Helpers for character customization ---
   const colorOptions = [
     // 0 yıldız
-    { id: 'blue', label: 'Mavi', color: '#00f0ff', cost: 0 },
-    { id: 'yellow', label: 'Sarı', color: '#facc15', cost: 0 },
-    { id: 'red', label: 'Kırmızı', color: '#ef4444', cost: 0 },
+    { id: 'blue', label: 'Mavi', color: '#00f0ff', cost: 0, adminOnly: false },
+    { id: 'yellow', label: 'Sarı', color: '#facc15', cost: 0, adminOnly: false },
+    { id: 'red', label: 'Kırmızı', color: '#ef4444', cost: 0, adminOnly: false },
     // 10 yıldız
-    { id: 'green', label: 'Yeşil', color: '#22c55e', cost: 10 },
-    { id: 'orange', label: 'Turuncu', color: '#f97316', cost: 10 },
-    { id: 'pink', label: 'Pembe', color: '#ec4899', cost: 10 },
+    { id: 'green', label: 'Yeşil', color: '#22c55e', cost: 10, adminOnly: false },
+    { id: 'orange', label: 'Turuncu', color: '#f97316', cost: 10, adminOnly: false },
+    { id: 'pink', label: 'Pembe', color: '#ec4899', cost: 10, adminOnly: false },
     // 30 yıldız
-    { id: 'white', label: 'Beyaz', color: '#ffffff', cost: 30 },
-    { id: 'black', label: 'Siyah', color: '#000000', cost: 30 },
-    { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30 },
+    { id: 'white', label: 'Beyaz', color: '#ffffff', cost: 30, adminOnly: false },
+    { id: 'black', label: 'Siyah', color: '#000000', cost: 30, adminOnly: false },
+    { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30, adminOnly: false },
     // 60 yıldız
-    { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60 },
+    { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60, adminOnly: false },
     // Admin only
-    { id: 'admin', label: 'Admin', color: '#800080', cost: 0, adminOnly: true },
-  ];
+    { id: 'admin', label: 'Admin', color: '#4c1d95', cost: 0, adminOnly: true },
+     ];
 
   const faceOptions = [
     { id: 'default', label: 'Klasik', cost: 0, adminOnly: false },
@@ -557,8 +557,8 @@ const App: React.FC = () => {
 
   const handleSelectColor = (colorHex: string, cost: number, adminOnly?: boolean) => {
     if (!user) return;
-    if (adminOnly && user.name !== 'dgoa') {
-      alert('Bu renk sadece dgoa için!');
+    if (adminOnly && !user.isAdmin) {
+      alert('Bu renk sadece adminler için!');
       return;
     }
     if ((user.totalStars || 0) < cost) {
@@ -574,8 +574,8 @@ const App: React.FC = () => {
 
   const handleSelectFace = (faceId: string, cost: number, adminOnly?: boolean) => {
     if (!user) return;
-    if (adminOnly && user.name !== 'dgoa') {
-      alert('Bu yüz sadece dgoa için!');
+    if (adminOnly && !user.isAdmin) {
+      alert('Bu yüz sadece adminler için!');
       return;
     }
     if ((user.totalStars || 0) < cost) {
@@ -870,20 +870,10 @@ const App: React.FC = () => {
                               ctx.arc(0, 5, 6, 0, Math.PI);
                               ctx.stroke();
                             } else if (currentFace === 'admin') {
+                              ctx.fillRect(-7, -7, 5, 5);
+                              ctx.fillRect(2, -7, 5, 5);
                               ctx.beginPath();
-                              ctx.moveTo(-7, -5);
-                              ctx.lineTo(-4, -9);
-                              ctx.lineTo(-1, -5);
-                              ctx.closePath();
-                              ctx.fill();
-                              ctx.beginPath();
-                              ctx.moveTo(1, -5);
-                              ctx.lineTo(4, -9);
-                              ctx.lineTo(7, -5);
-                              ctx.closePath();
-                              ctx.fill();
-                              ctx.beginPath();
-                              ctx.arc(0, 5, 7, 0, Math.PI);
+                              ctx.arc(0, 4, 3, 0, Math.PI); // small smile
                               ctx.stroke();
                             } else {
                               ctx.fillRect(-7, -7, 5, 5);
@@ -930,7 +920,7 @@ const App: React.FC = () => {
                           </span>
                           {isLocked ? (
                             <span className="flex items-center gap-1 text-[10px] text-yellow-300">
-                              <Lock size={10} /> {face.cost}⭐
+                              <Lock size={10} /> {lockedByAdmin ? 'Admin' : `${face.cost}⭐`}
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-300">
@@ -951,24 +941,29 @@ const App: React.FC = () => {
                   <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
                     {colorOptions.map(opt => {
                       const isSelected = currentColor.toLowerCase() === opt.color.toLowerCase();
-                      const locked = stars < opt.cost;
+                      const lockedByStars = stars < opt.cost;
+                      const lockedByAdmin = opt.adminOnly && !user?.isAdmin;
+                      const isLocked = lockedByStars || lockedByAdmin;
 
                       return (
                         <button
                           key={opt.id}
-                          onClick={() => handleSelectColor(opt.color, opt.cost)}
+                          onClick={() => handleSelectColor(opt.color, opt.cost, opt.adminOnly)}
                           className={`flex flex-col items-center gap-1 p-2 rounded-lg border min-w-[60px] sm:min-w-[70px]
                             ${isSelected ? 'border-cyan-400 bg-slate-700' : 'border-slate-600 bg-slate-800 hover:bg-slate-700'}
-                            ${locked ? 'opacity-60' : ''}`}
+                            ${isLocked ? 'opacity-60' : ''}`}
                         >
-                          <div
-                            className="w-6 h-6 sm:w-8 sm:w-8 rounded border border-black"
-                            style={{ backgroundColor: opt.color }}
-                          />
+                          <div className="flex items-center gap-1">
+                            {opt.adminOnly && <ShieldAlert size={12} className="text-pink-400" />}
+                            <div
+                              className="w-6 h-6 sm:w-8 sm:h-8 rounded border border-black"
+                              style={{ backgroundColor: opt.color }}
+                            />
+                          </div>
                           <span className="text-[10px] sm:text-[11px] font-bold">{opt.label}</span>
-                          {locked ? (
+                          {isLocked ? (
                             <span className="flex items-center gap-1 text-[10px] text-yellow-300">
-                              <Lock size={10} /> {opt.cost}⭐
+                              <Lock size={10} /> {lockedByAdmin ? 'Admin' : `${opt.cost}⭐`}
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-300">
@@ -1060,13 +1055,10 @@ const App: React.FC = () => {
                                                  ctx.arc(0, 2, 3, 0, Math.PI);
                                                  ctx.stroke();
                                                } else if (face === 'admin') {
-                                                 // Cute smiling cube for preview
-                                                 // Little eyes
-                                                 ctx.fillRect(-2, -2, 1, 1);
-                                                 ctx.fillRect(1, -2, 1, 1);
-                                                 // Tiny smiling mouth
+                                                 ctx.fillRect(-3, -3, 2, 2);
+                                                 ctx.fillRect(1, -3, 2, 2);
                                                  ctx.beginPath();
-                                                 ctx.arc(0, 1, 1, 0, Math.PI);
+                                                 ctx.arc(0, 1.5, 1.5, 0, Math.PI); // small smile
                                                  ctx.stroke();
                                                } else {
                                                  ctx.fillRect(-3, -3, 2, 2);
