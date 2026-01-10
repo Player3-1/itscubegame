@@ -3,9 +3,9 @@ import { GameCanvas } from './GameCanvas';
 import LevelEditor from './LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
 import { ADMIN_PASSWORD, COLORS } from './constants.ts';
-import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy } from 'lucide-react';
+import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2 } from 'lucide-react';
 import { db } from './firebase.ts';
-import { collection, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 // expressions/emotes removed per user request
 
 // Start with empty levels
@@ -428,6 +428,30 @@ const App: React.FC = () => {
         })();
       }
             // Removed: Award the admin who changed the difficulty stars
+  };
+
+  const deleteLevel = (levelId: string) => {
+      if (!user?.isAdmin) return;
+
+      const updatedLevels = levels.filter(l => l.id !== levelId);
+      setLevels(updatedLevels);
+      localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
+
+      // Remove from hardest if present
+      const updatedHardest = hardestLevelIds.filter(id => id !== levelId);
+      if (updatedHardest.length !== hardestLevelIds.length) {
+          updateHardestLevels(updatedHardest);
+      }
+
+      // Delete from Firestore
+      (async () => {
+        try {
+          const ref = doc(db, 'levels', levelId);
+          await deleteDoc(ref);
+        } catch (err) {
+          console.error('Firestore delete level error:', err);
+        }
+      })();
   };
 
   const handleLevelComplete = () => {
@@ -1229,7 +1253,7 @@ const App: React.FC = () => {
 
                                      {/* Admin Controls */}
                                      {user?.isAdmin && (
-                                         <div className="flex flex-col gap-0.5 sm:gap-1">
+                                         <div className="flex flex-col gap-0.5 sm:gap-1 ml-2">
                                              <select
                                                 className="bg-black text-xs p-1 rounded border border-slate-600 text-white"
                                                 value={level.difficulty}
@@ -1255,14 +1279,22 @@ const App: React.FC = () => {
                                                      ))}
                                                  </div>
                                              )}
-                                             {levelView === 'all' && !hardestLevelIds.includes(level.id) && hardestLevelIds.length < 11 && (
+                                             <div className="flex gap-1 mt-1">
+                                                 {levelView === 'all' && !hardestLevelIds.includes(level.id) && hardestLevelIds.length < 11 && (
+                                                     <button
+                                                         onClick={() => { setShowAddToHardest(true); setAddLevelId(level.id); setAddPosition(1); }}
+                                                         className="bg-red-600 hover:bg-red-500 px-1 py-0.5 rounded text-xs font-bold text-white"
+                                                     >
+                                                         En Zora Ekle
+                                                     </button>
+                                                 )}
                                                  <button
-                                                     onClick={() => { setShowAddToHardest(true); setAddLevelId(level.id); setAddPosition(1); }}
-                                                     className="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-xs font-bold text-white"
+                                                     onClick={() => deleteLevel(level.id)}
+                                                     className="bg-red-700 hover:bg-red-600 px-1 py-0.5 rounded text-xs font-bold text-white flex items-center gap-1"
                                                  >
-                                                     En Zora Ekle
+                                                     <Trash2 size={10} /> Sil
                                                  </button>
-                                             )}
+                                             </div>
                                          </div>
                                      )}
 
