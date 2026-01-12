@@ -26,7 +26,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
   const tools = [
       { type: ObstacleType.BLOCK, icon: Box, label: 'Block', color: COLORS.block },
       { type: ObstacleType.DECOR_1, icon: Box, label: 'Decor 1', color: '#10b981' },
-      { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Half', color: COLORS.halfBlock },
+      { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Half Block', color: COLORS.halfBlock },
           { type: ObstacleType.PASS_THROUGH, icon: Box, label: 'Pass Through', color: COLORS.passThrough },
           { type: ObstacleType.BOUNCER, icon: ArrowUp, label: 'Bouncer', color: COLORS.bouncer },
       { type: ObstacleType.SPIKE, icon: Triangle, label: 'Spike', color: COLORS.spike },
@@ -120,7 +120,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                      ctx.closePath();
                      ctx.fill();
                  } else if (obs.type === ObstacleType.SPIKE_DOWN) {
-                     // Inverted spike: red spike pointing downward from ceiling
+                     // Inverted spike: red spike hanging from ceiling downward
                      ctx.fillStyle = COLORS.spike;
                      ctx.beginPath();
                      ctx.moveTo(obs.x, obs.y); // sol üst

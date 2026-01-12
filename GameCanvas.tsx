@@ -211,7 +211,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.strokeStyle = '#000';
         ctx.stroke();
       } else if (obs.type === ObstacleType.SPIKE_DOWN) {
-        // Ters diken: tavandan aşağı sarkan kırmızı diken
+        // Inverted spike: red spike hanging down from ceiling
         ctx.fillStyle = COLORS.spike;
         ctx.beginPath();
         ctx.moveTo(obs.x, obs.y); // sol üst
@@ -648,7 +648,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             ÇIKIŞ
           </button>
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
-            {isTestMode ? 'TEST MODE' : `Deneme #${attempt} — ${progress}%`}
+            {isTestMode ? 'TEST MODE' : `Attempt #${attempt} — ${progress}%`}
           </div>
         </>
       )}

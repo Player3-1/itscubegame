@@ -74,5 +74,5 @@ export interface User {
   completedLevels: string[]; // IDs of levels completed
   likedLevels: string[]; // IDs of levels liked
   selectedColor: string;
-  selectedFace?: string; // Face expression (optional, for backward compatibility)
+  selectedFace?: string; // Yüz ifadesi (opsiyonel, geriye dönük uyum için)
 }
