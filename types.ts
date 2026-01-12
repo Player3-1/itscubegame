@@ -14,18 +14,18 @@ export enum GameState {
 export enum ObstacleType {
   SPIKE = 'SPIKE',
   SPIKE_DOWN = 'SPIKE_DOWN',
-  FAKE_SPIKE = 'FAKE_SPIKE', // Sahte diken
-  FAKE_SPIKE_DOWN = 'FAKE_SPIKE_DOWN', // Ters sahte diken
+  FAKE_SPIKE = 'FAKE_SPIKE', // Fake spike
+  FAKE_SPIKE_DOWN = 'FAKE_SPIKE_DOWN', // Inverted fake spike
   BLOCK = 'BLOCK',
   PASS_THROUGH = 'PASS_THROUGH', // New: visual block you can pass through
-  BOUNCER = 'BOUNCER', // Zıplatıcı blok
-  HALF_BLOCK = 'HALF_BLOCK', // Yarım blok
+  BOUNCER = 'BOUNCER', // Bouncer block
+  HALF_BLOCK = 'HALF_BLOCK', // Half block
   FLOOR_GAP = 'FLOOR_GAP',
   DECOR_1 = 'DECOR_1', // Purple grid block (solid)
   DECOR_2 = 'DECOR_2', // Green block (solid)
-  GRAVITY_UP = 'GRAVITY_UP', // Yer çekimini yukarıya çeviren blok
-  GRAVITY_NORMAL = 'GRAVITY_NORMAL', // Normal yer çekimine çeviren blok
-  CUBE_PORTAL = 'CUBE_PORTAL' // Küp portalı
+  GRAVITY_UP = 'GRAVITY_UP', // Block that reverses gravity upward
+  GRAVITY_NORMAL = 'GRAVITY_NORMAL', // Block that restores normal gravity
+  CUBE_PORTAL = 'CUBE_PORTAL' // Cube portal
 }
 
 export interface Obstacle {
@@ -74,5 +74,5 @@ export interface User {
   completedLevels: string[]; // IDs of levels completed
   likedLevels: string[]; // IDs of levels liked
   selectedColor: string;
-  selectedFace?: string; // Yüz ifadesi (opsiyonel, geriye dönük uyum için)
+  selectedFace?: string; // Face expression (optional, for backward compatibility)
 }

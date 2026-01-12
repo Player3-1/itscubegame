@@ -257,7 +257,7 @@ const App: React.FC = () => {
      const pass = loginPass.trim();
 
      if (!name || !pass) {
-       setLoginError("Kullanıcı adı ve şifre gerekli!");
+       setLoginError("Username and password required!");
        return;
      }
 
@@ -267,11 +267,11 @@ const App: React.FC = () => {
      if (isRegistering) {
          // REGISTER LOGIC
          if (existingUser) {
-             setLoginError("Bu isim zaten alınmış!");
+             setLoginError("Username already taken!");
              return;
          }
          if (name.toLowerCase() === 'dgoa') {
-             setLoginError("Bu isim yasaklı.");
+             setLoginError("This username is banned.");
              return;
          }
 
@@ -290,11 +290,11 @@ const App: React.FC = () => {
      } else {
          // LOGIN LOGIC
          if (!existingUser) {
-             setLoginError("Kullanıcı bulunamadı.");
+             setLoginError("User not found.");
              return;
          }
          if (existingUser.password && existingUser.password !== pass) {
-             setLoginError("Hatalı şifre!");
+             setLoginError("Incorrect password!");
              return;
          }
 
@@ -320,7 +320,7 @@ const App: React.FC = () => {
             setGameState(GameState.MENU);
           }
       } else {
-          setLoginError("Geçersiz Yönetici Kodu!");
+          setLoginError("Invalid Admin Code!");
       }
   };
 
@@ -552,19 +552,19 @@ const App: React.FC = () => {
 
   // --- Helpers for character customization ---
   const colorOptions = [
-    // 0 yıldız
+    // 0 stars
     { id: 'blue', label: 'Mavi', color: '#00f0ff', cost: 0, adminOnly: false },
-    { id: 'yellow', label: 'Sarı', color: '#facc15', cost: 0, adminOnly: false },
-    { id: 'red', label: 'Kırmızı', color: '#ef4444', cost: 0, adminOnly: false },
-    // 10 yıldız
-    { id: 'green', label: 'Yeşil', color: '#22c55e', cost: 10, adminOnly: false },
+    { id: 'yellow', label: 'Yellow', color: '#facc15', cost: 0, adminOnly: false },
+    { id: 'red', label: 'Red', color: '#ef4444', cost: 0, adminOnly: false },
+    // 10 stars
+    { id: 'green', label: 'Green', color: '#22c55e', cost: 10, adminOnly: false },
     { id: 'orange', label: 'Turuncu', color: '#f97316', cost: 10, adminOnly: false },
     { id: 'pink', label: 'Pembe', color: '#ec4899', cost: 10, adminOnly: false },
-    // 30 yıldız
+    // 30 stars
     { id: 'white', label: 'Beyaz', color: '#ffffff', cost: 30, adminOnly: false },
     { id: 'black', label: 'Siyah', color: '#000000', cost: 30, adminOnly: false },
     { id: 'gray', label: 'Gri', color: '#9ca3af', cost: 30, adminOnly: false },
-    // 60 yıldız
+    // 60 stars
     { id: 'purple', label: 'Mor', color: '#a855f7', cost: 60, adminOnly: false },
     // Admin only
     { id: 'admin', label: 'Admin', color: '#4c1d95', cost: 0, adminOnly: true },
@@ -572,21 +572,21 @@ const App: React.FC = () => {
 
   const faceOptions = [
     { id: 'default', label: 'Klasik', cost: 0, adminOnly: false },
-    { id: 'happy', label: 'Mutlu', cost: 0, adminOnly: false },
-    { id: 'angry', label: 'Sinirli', cost: 10, adminOnly: false },
-    { id: 'surprised', label: 'Şaşkın', cost: 15, adminOnly: false },
-    { id: 'cool', label: 'Havalı', cost: 50, adminOnly: false },
+    { id: 'happy', label: 'Happy', cost: 0, adminOnly: false },
+    { id: 'angry', label: 'Angry', cost: 10, adminOnly: false },
+    { id: 'surprised', label: 'Surprised', cost: 15, adminOnly: false },
+    { id: 'cool', label: 'Cool', cost: 50, adminOnly: false },
     { id: 'admin', label: 'Admin', cost: 0, adminOnly: true },
   ];
 
   const handleSelectColor = (colorHex: string, cost: number, adminOnly?: boolean) => {
     if (!user) return;
     if (adminOnly && !user.isAdmin) {
-      alert('Bu renk sadece adminler için!');
+      alert('This color is admin only!');
       return;
     }
     if ((user.totalStars || 0) < cost) {
-      alert(`${cost} yıldız gerekiyor!`);
+      alert(`${cost} stars required!`);
       return;
     }
     const updatedUser: User = {
@@ -599,11 +599,11 @@ const App: React.FC = () => {
   const handleSelectFace = (faceId: string, cost: number, adminOnly?: boolean) => {
     if (!user) return;
     if (adminOnly && !user.isAdmin) {
-      alert('Bu yüz sadece adminler için!');
+      alert('This face is admin only!');
       return;
     }
     if ((user.totalStars || 0) < cost) {
-      alert(`${cost} yıldız gerekiyor!`);
+      alert(`${cost} stars required!`);
       return;
     }
     const updatedUser: User = {
@@ -627,7 +627,7 @@ const App: React.FC = () => {
 
                <h1 className="text-3xl sm:text-4xl font-black text-center text-cyan-400 mb-2 font-orbitron tracking-wider">CUBE DASH</h1>
                <p className="text-center text-slate-400 mb-6 sm:mb-8 font-bold text-sm sm:text-base">
-                   {showAdminCodeInput ? "YÖNETİCİ DOĞRULAMA" : (isRegistering ? "HESAP OLUŞTUR" : "GİRİŞ YAP")}
+                   {showAdminCodeInput ? "ADMIN VERIFICATION" : (isRegistering ? "CREATE ACCOUNT" : "SIGN IN")}
                </p>
                
                {showAdminCodeInput ? (
@@ -635,41 +635,41 @@ const App: React.FC = () => {
                    <div className="space-y-4 animate-in zoom-in-95">
                        <div className="bg-pink-900/20 p-4 rounded border border-pink-500/50 text-center mb-4">
                            <ShieldAlert className="mx-auto text-pink-500 mb-2" size={32} />
-                           <p className="text-pink-200 text-sm">Bu hesaba erişmek için yönetici anahtarı gereklidir.</p>
+                           <p className="text-pink-200 text-sm">Administrator password required to access this account.</p>
                        </div>
                        <div>
-                          <label className="block text-xs uppercase font-bold text-pink-500 mb-1">Yönetici Şifresi</label>
+                          <label className="block text-xs uppercase font-bold text-pink-500 mb-1">Admin Password</label>
                           <input 
                               type="password"
                               className="w-full bg-slate-900 border border-pink-500 rounded p-3 text-white focus:outline-none focus:shadow-[0_0_10px_rgba(236,72,153,0.5)] transition"
                               value={adminCode}
                               onChange={(e) => setAdminCode(e.target.value)}
-                              placeholder="Kodu girin..."
+                              placeholder="Enter code..."
                           />
                        </div>
                        {loginError && <p className="text-red-500 text-sm font-bold text-center bg-red-900/20 p-2 rounded">{loginError}</p>}
                        <button onClick={handleAdminCodeSubmit} className="w-full bg-pink-600 hover:bg-pink-500 py-3 rounded font-bold text-lg font-orbitron transition shadow-lg">
-                          DOĞRULA
+                          VERIFY
                        </button>
                        <button onClick={() => { setShowAdminCodeInput(false); setAdminCode(""); }} className="w-full text-slate-500 hover:text-white text-sm py-2">
-                          Geri Dön
+                          Back
                        </button>
                    </div>
                ) : (
                    // NORMAL LOGIN / REGISTER SCREEN
                    <div className="space-y-4">
                       <div>
-                          <label className="block text-xs uppercase font-bold text-slate-500 mb-1">Kullanıcı Adı</label>
+                          <label className="block text-xs uppercase font-bold text-slate-500 mb-1">Username</label>
                           <input 
                             className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-cyan-500 outline-none transition"
                             value={loginName}
                             onChange={(e) => setLoginName(e.target.value)}
-                            placeholder="Kullanıcı adı..."
+                            placeholder="Username..."
                           />
                       </div>
                       
                       <div>
-                          <label className="block text-xs uppercase font-bold text-slate-500 mb-1">Şifre</label>
+                          <label className="block text-xs uppercase font-bold text-slate-500 mb-1">Password</label>
                           <input 
                             type="password"
                             className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-cyan-500 outline-none transition"
@@ -685,7 +685,7 @@ const App: React.FC = () => {
                         onClick={handleAuthAction} 
                         className={`w-full py-3 rounded font-bold text-lg font-orbitron transition flex items-center justify-center gap-2 ${isRegistering ? 'bg-green-600 hover:bg-green-500' : 'bg-cyan-600 hover:bg-cyan-500'}`}
                       >
-                          {isRegistering ? <><UserPlus size={20}/> KAYIT OL</> : <><LogIn size={20}/> GİRİŞ YAP</>}
+                          {isRegistering ? <><UserPlus size={20}/> REGISTER</> : <><LogIn size={20}/> SIGN IN</>}
                       </button>
                       
                       <div className="pt-4 border-t border-slate-700 flex justify-center">
@@ -693,7 +693,7 @@ const App: React.FC = () => {
                             onClick={() => { setIsRegistering(!isRegistering); setLoginError(""); }}
                             className="text-sm text-slate-400 hover:text-white transition"
                          >
-                            {isRegistering ? "Zaten hesabın var mı? Giriş Yap" : "Hesabın yok mu? Kayıt Ol"}
+                            {isRegistering ? "Already have an account? Sign In" : "Don't have an account? Register"}
                          </button>
                       </div>
                    </div>
@@ -703,11 +703,11 @@ const App: React.FC = () => {
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-black/60" onClick={() => setShowAssignDifficulty(false)} />
                         <div className="bg-slate-800 p-4 sm:p-6 rounded-lg z-10 w-full max-w-md border border-slate-700">
-                            <h3 className="text-xl sm:text-2xl font-bold mb-4">Zorluk Ata (ID ile)</h3>
+                            <h3 className="text-xl sm:text-2xl font-bold mb-4">Assign Difficulty (by ID)</h3>
                             <div className="mb-4">
-                                <label className="text-sm text-slate-400">Bölüm ID (numara)</label>
-                                <input value={assignLevelId} onChange={(e) => setAssignLevelId(e.target.value)} placeholder="Örn: 12" className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" />
-                                <div className="text-xs text-slate-400 mt-1">ID'yi girin ve hangi zorluğu atamak istediğinizi seçin.</div>
+                                <label className="text-sm text-slate-400">Level ID (number)</label>
+                                <input value={assignLevelId} onChange={(e) => setAssignLevelId(e.target.value)} placeholder="Ex: 12" className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" />
+                                <div className="text-xs text-slate-400 mt-1">Enter the ID and select the difficulty you want to assign.</div>
                             </div>
                             <div className="mb-4">
                                 <label className="text-sm text-slate-400">Zorluk</label>
@@ -722,7 +722,7 @@ const App: React.FC = () => {
                             </div>
                             {assignDifficulty !== 'Unlisted' && (
                                 <div className="mb-4">
-                                    <label className="text-sm text-slate-400">Yıldız Derecesi</label>
+                                    <label className="text-sm text-slate-400">Star Rating</label>
                                     <div className="flex gap-1 mt-1">
                                         {[1, 2, 3, ...(assignDifficulty === 'Extreme' ? [4] : [])].map(star => (
                                             <button
@@ -740,9 +740,9 @@ const App: React.FC = () => {
                                 <button onClick={() => setShowAssignDifficulty(false)} className="px-3 sm:px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm sm:text-base">Vazgeç</button>
                                 <button onClick={() => {
                                     const n = Number(assignLevelId);
-                                    if (!n || isNaN(n)) { alert('Geçerli bir ID girin'); return; }
+                                    if (!n || isNaN(n)) { alert('Enter a valid ID'); return; }
                                     const found = levels.find(l => l.levelNumber === n);
-                                    if (!found) { alert('ID ile eşleşen bölüm yok'); return; }
+                                    if (!found) { alert('No level found with that ID'); return; }
                                     updateDifficulty(found.id, assignDifficulty);
                                     setShowAssignDifficulty(false);
                                 }} className="px-3 sm:px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-white text-sm sm:text-base">Uygula</button>
@@ -843,12 +843,12 @@ const App: React.FC = () => {
               <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
             </button>
             <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-cyan-400 mb-4 text-center">
-              KARAKTER
+              CHARACTER
             </h2>
 
             <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700">
               <div className="flex flex-col items-center gap-4 sm:gap-6">
-                {/* Ortadaki karakter önizlemesi */}
+                {/* Character preview in center */}
                 <div className="flex flex-col items-center gap-2">
                   <div
                     className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl border-4 border-black shadow-xl relative overflow-hidden"
@@ -914,7 +914,7 @@ const App: React.FC = () => {
                     />
                   </div>
                   <div className="text-sm text-slate-300">
-                    Toplam yıldızın: <span className="text-yellow-300 font-bold">{stars}</span>
+                    Total Stars: <span className="text-yellow-300 font-bold">{stars}</span>
                   </div>
                 </div>
 
@@ -948,7 +948,7 @@ const App: React.FC = () => {
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-300">
-                              {face.cost === 0 ? 'Ücretsiz' : `${face.cost}⭐`}
+                              {face.cost === 0 ? 'Free' : `${face.cost}⭐`}
                             </span>
                           )}
                         </button>
@@ -991,7 +991,7 @@ const App: React.FC = () => {
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-300">
-                              {opt.cost === 0 ? 'Ücretsiz' : `${opt.cost}⭐`}
+                              {opt.cost === 0 ? 'Free' : `${opt.cost}⭐`}
                             </span>
                           )}
                         </button>
@@ -1024,13 +1024,13 @@ const App: React.FC = () => {
              <div className="w-full max-w-2xl">
                  <div className="flex items-center justify-between mb-4 sm:mb-8">
                     <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={24} className="sm:w-8 sm:h-8"/></button>
-                    <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-purple-400">DÜNYA SIRALAMASI</h2>
+                    <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-purple-400">GLOBAL LEADERBOARD</h2>
                     <div className="w-6 sm:w-10"></div>
                  </div>
 
                  <div id="leaderboard-list" className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden max-h-[70vh] overflow-y-auto">
                  {leaderboardDb.length === 0 && (
-                         <div className="p-4 sm:p-8 text-center text-slate-500 text-sm sm:text-base">Henüz kimse sıralamaya girmedi.</div>
+                         <div className="p-4 sm:p-8 text-center text-slate-500 text-sm sm:text-base">No one on the leaderboard yet.</div>
                      )}
                      {leaderboardDb.map((entry, idx) => (
                          <div key={idx} className={`flex items-center justify-between p-3 sm:p-4 border-b border-slate-700 ${entry.name === user?.name ? 'bg-purple-900/30' : ''}`}>
@@ -1125,7 +1125,7 @@ const App: React.FC = () => {
               <div className="max-w-full sm:max-w-4xl mx-auto">
                  <div className="flex items-center justify-between mb-4 sm:mb-8">
                     <button onClick={() => setGameState(GameState.MENU)} className="p-2 hover:bg-slate-800 rounded-full"><ChevronLeft size={24} className="sm:w-8 sm:h-8"/></button>
-                    <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-cyan-400">BÖLÜMLER</h2>
+                    <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-cyan-400">LEVELS</h2>
                     <div className="w-6 sm:w-10"></div>
                  </div>
 
@@ -1134,7 +1134,7 @@ const App: React.FC = () => {
                         onClick={() => setGameState(GameState.EDITOR)}
                         className="flex items-center gap-2 bg-pink-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-bold hover:bg-pink-500 hover:scale-105 transition shadow-lg text-sm sm:text-base"
                     >
-                        <PenTool size={16} className="sm:w-5 sm:h-5"/> BÖLÜM OLUŞTUR
+                        <PenTool size={16} className="sm:w-5 sm:h-5"/> CREATE LEVEL
                     </button>
                     {user?.isAdmin && (
                         <>
@@ -1171,7 +1171,7 @@ const App: React.FC = () => {
                     <input
                        value={levelSearch}
                        onChange={(e) => setLevelSearch(e.target.value)}
-                       placeholder="Bölüm adı veya yazar ara..."
+                       placeholder="Search level name or author..."
                        className="w-full max-w-full sm:max-w-md bg-slate-800 border border-slate-600 rounded-lg px-3 sm:px-4 py-2 text-sm focus:outline-none focus:border-cyan-400"
                     />
                  </div>
@@ -1181,7 +1181,7 @@ const App: React.FC = () => {
                  <div className="grid gap-2 sm:gap-4 max-h-[60vh] sm:max-h-[480px] overflow-y-auto pr-1">
                      {levels.length === 0 && (
                          <div className="text-center text-slate-500 py-10 sm:py-20 text-sm sm:text-base">
-                             Henüz yayınlanmış bir bölüm yok. İlk bölümü sen yap!
+                             No published levels yet. Create the first one!
                          </div>
                      )}
                      {displayedLevels
@@ -1413,7 +1413,7 @@ const App: React.FC = () => {
 
               <div className="relative z-10 bg-slate-800 p-6 sm:p-12 rounded-3xl shadow-2xl text-center border-4 border-slate-700 max-w-lg w-full animate-in zoom-in">
                   <h2 className={`text-4xl sm:text-6xl font-black mb-4 font-orbitron ${isWin ? 'text-green-400' : 'text-red-500'}`}>
-                      {isWin ? "TAMAMLANDI!" : "ELENDİN!"}
+                      {isWin ? "COMPLETED!" : "ELIMINATED!"}
                   </h2>
 
                   <div className="flex justify-center my-6 sm:my-8">

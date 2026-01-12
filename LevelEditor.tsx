@@ -24,16 +24,16 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const tools = [
-      { type: ObstacleType.BLOCK, icon: Box, label: 'Blok', color: COLORS.block },
-      { type: ObstacleType.DECOR_1, icon: Box, label: 'Dekor 1', color: '#10b981' },
-      { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Yarım', color: COLORS.halfBlock },
-          { type: ObstacleType.PASS_THROUGH, icon: Box, label: 'İçinden Geç', color: COLORS.passThrough },
-          { type: ObstacleType.BOUNCER, icon: ArrowUp, label: 'Zıplatıcı', color: COLORS.bouncer },
-      { type: ObstacleType.SPIKE, icon: Triangle, label: 'Diken', color: COLORS.spike },
-      { type: ObstacleType.FAKE_SPIKE, icon: Triangle, label: 'Sahte Diken', color: 'rgba(255, 0, 60, 0.6)' },
-      { type: ObstacleType.SPIKE_DOWN, icon: Triangle, label: 'Ters Diken', color: 'rgba(255, 0, 60, 0.6)' },
-      { type: ObstacleType.FAKE_SPIKE_DOWN, icon: Triangle, label: 'Ters Sahte Diken', color: 'rgba(255, 0, 60, 0.6)' },
-      { type: ObstacleType.FLOOR_GAP, icon: ArrowRight, label: 'Boşluk', color: '#fff' }
+      { type: ObstacleType.BLOCK, icon: Box, label: 'Block', color: COLORS.block },
+      { type: ObstacleType.DECOR_1, icon: Box, label: 'Decor 1', color: '#10b981' },
+      { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Half', color: COLORS.halfBlock },
+          { type: ObstacleType.PASS_THROUGH, icon: Box, label: 'Pass Through', color: COLORS.passThrough },
+          { type: ObstacleType.BOUNCER, icon: ArrowUp, label: 'Bouncer', color: COLORS.bouncer },
+      { type: ObstacleType.SPIKE, icon: Triangle, label: 'Spike', color: COLORS.spike },
+      { type: ObstacleType.FAKE_SPIKE, icon: Triangle, label: 'Fake Spike', color: 'rgba(255, 0, 60, 0.6)' },
+      { type: ObstacleType.SPIKE_DOWN, icon: Triangle, label: 'Inverted Spike', color: 'rgba(255, 0, 60, 0.6)' },
+      { type: ObstacleType.FAKE_SPIKE_DOWN, icon: Triangle, label: 'Inverted Fake Spike', color: 'rgba(255, 0, 60, 0.6)' },
+      { type: ObstacleType.FLOOR_GAP, icon: ArrowRight, label: 'Gap', color: '#fff' }
     ];
 
   // Draw Editor Loop
@@ -120,7 +120,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                      ctx.closePath();
                      ctx.fill();
                  } else if (obs.type === ObstacleType.SPIKE_DOWN) {
-                     // Ters diken: tavandan aşağı doğru kırmızı diken
+                     // Inverted spike: red spike pointing downward from ceiling
                      ctx.fillStyle = COLORS.spike;
                      ctx.beginPath();
                      ctx.moveTo(obs.x, obs.y); // sol üst
@@ -322,8 +322,8 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
   };
 
   const handleSave = () => {
-      if(!levelName) return alert("Lütfen bölüm ismi girin");
-      if(obstacles.length < 5) return alert("Bölüm çok kısa!");
+      if(!levelName) return alert("Please enter a level name");
+      if(obstacles.length < 5) return alert("Level is too short!");
 
       if (obstacles.length === 0) {
           const levelData: LevelData = {
@@ -371,7 +371,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                 value={levelName}
                 onChange={(e) => setLevelName(e.target.value)}
                 className="bg-slate-900 text-white px-3 py-2 rounded border border-slate-700 flex-1 sm:flex-none"
-                placeholder="Bölüm İsmi"
+                placeholder="Level Name"
              />
              <div className="flex items-center gap-2">
 
@@ -382,13 +382,13 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                  onClick={toggleTest}
                  className={`px-3 sm:px-4 py-2 rounded font-bold flex gap-2 items-center text-sm sm:text-base ${isTesting ? 'bg-orange-500 hover:bg-orange-400' : 'bg-cyan-600 hover:bg-cyan-500'}`}
               >
-                 {isTesting ? <><Square size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> DÜZENLE</> : <><Play size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> TEST ET</>}
+                 {isTesting ? <><Square size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> EDIT</> : <><Play size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> TEST</>}
               </button>
               {!isTesting && (
                  <>
-                     <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Çık</button>
+                     <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Exit</button>
                      <button onClick={handleSave} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
-                         <Save size={16} className="sm:w-5 sm:h-5" /> YAYINLA
+                         <Save size={16} className="sm:w-5 sm:h-5" /> PUBLISH
                      </button>
                  </>
               )}
@@ -460,13 +460,13 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                     className={`flex flex-col items-center p-3 rounded transition-all w-20 ${selectedTool === 'ERASER' ? 'bg-red-600 scale-105 shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}
                 >
                     <Eraser size={24} className="text-white" />
-                    <span className="text-xs mt-1 font-bold">Silgi</span>
+                    <span className="text-xs mt-1 font-bold">Eraser</span>
                 </button>
 
 
                 <button onClick={() => setShowClearConfirm(true)} className="flex flex-col items-center p-3 rounded bg-red-900/50 hover:bg-red-900 w-20 text-red-400 ml-2">
                     <Trash2 size={24} />
-                    <span className="text-xs mt-1">Sıfırla</span>
+                    <span className="text-xs mt-1">Reset</span>
                 </button>
 
 
@@ -474,18 +474,18 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
                     <div className="fixed inset-0 z-50 flex items-center justify-center">
                         <div className="absolute inset-0 bg-black/60" onClick={() => setShowClearConfirm(false)} />
                         <div className="bg-slate-800 p-6 rounded-lg z-10 w-96 border border-slate-700">
-                            <h3 className="text-lg font-bold mb-2">Temizlemek istiyor musunuz?</h3>
-                            <p className="text-sm text-slate-400 mb-4">Bu, tüm nesneleri kaldıracaktır. İşlemi geri alamazsınız.</p>
+                            <h3 className="text-lg font-bold mb-2">Clear all objects?</h3>
+                            <p className="text-sm text-slate-400 mb-4">This will remove all objects. You cannot undo this action.</p>
                             <div className="flex gap-2 justify-end">
-                                <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Vazgeç</button>
-                                <button onClick={() => { setObstacles([]); setShowClearConfirm(false); }} className="px-4 py-2 rounded bg-red-600 hover:bg-red-500 text-white">Evet, Temizle</button>
+                                <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Cancel</button>
+                                <button onClick={() => { setObstacles([]); setShowClearConfirm(false); }} className="px-4 py-2 rounded bg-red-600 hover:bg-red-500 text-white">Yes, Clear</button>
                             </div>
                         </div>
                     </div>
                 )}
                 {/* color picking removed */}
             </div>
-            <p className="text-center text-slate-500 text-sm">Nesne eklemek/silmek için ızgaraya tıklayın. Silgi seçiliyken nesneye tıklayın.</p>
+            <p className="text-center text-slate-500 text-sm">Click on the grid to add/remove objects. Select the eraser and click on an object to delete it.</p>
            </>
        )}
     </div>
