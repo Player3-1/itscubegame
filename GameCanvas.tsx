@@ -658,14 +658,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         p.x += p.currentSpeed * deltaTime;
         cameraX.current = p.x - 100;
 
-        // Camera Y follow disabled in wave mode
+        // Camera Y: no vertical follow in normal mode
         if (p.inWave) {
           cameraY.current = 0;
-        } else {
-          const baseY = GROUND_HEIGHT - PLAYER_SIZE;
-          const desiredScreenY = baseY;
-          const targetCameraY = Math.max(-220, Math.min(0, p.y - desiredScreenY));
-          cameraY.current += (targetCameraY - cameraY.current) * 0.12 * deltaTime;
         }
 
         // Determine Floor Level
