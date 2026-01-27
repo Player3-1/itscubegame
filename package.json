@@ -4,13 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "npx vite",
+    "build": "npx vite build",
+    "preview": "npx vite preview"
   },
   "dependencies": {
-    "react-dom": "^19.2.1",
     "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "lucide-react": "^0.469.0",
     "@google/genai": "^1.32.0",
     "firebase": "^11.0.0"
@@ -20,5 +20,8 @@
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
