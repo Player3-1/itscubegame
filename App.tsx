@@ -1223,7 +1223,7 @@ const App: React.FC = () => {
                              'Extreme': 'text-pink-500'
                          };
 
-                         const isCompleted = user?.completedLevels.includes(level.id);
+                         const isCompleted = user?.completedLevels.includes(level.id) || user?.highestProgress?.[level.id] === 100;
                          const isLiked = user?.likedLevels?.includes(level.id);
 
                          return (
