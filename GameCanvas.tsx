@@ -773,7 +773,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
 
         // Collision Detection
-        const hitBoxBuffer = 6;
+        const hitBoxBuffer = 7;
 
         for (const obs of obstacles.current) {
           if (obs.x > p.x + 100 || obs.x + obs.width < p.x - 100) continue;
