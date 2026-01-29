@@ -8,7 +8,8 @@ export enum GameState {
    GAME_OVER = 'GAME_OVER',
    LEADERBOARD = 'LEADERBOARD',
    CHARACTER_SELECT = 'CHARACTER_SELECT',
-   HARDEST_LEVELS = 'HARDEST_LEVELS'
+   HARDEST_LEVELS = 'HARDEST_LEVELS',
+   MODS = 'MODS'
 }
 
 export enum ObstacleType {
@@ -57,6 +58,7 @@ export interface Particle {
   life: number;
   color: string;
   size: number;
+  hue?: number; // For rainbow trail effect
 }
 
 export interface LevelData {

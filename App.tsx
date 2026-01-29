@@ -3,13 +3,36 @@ import { GameCanvas } from './GameCanvas';
 import LevelEditor from './LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
 import { ADMIN_PASSWORD, COLORS } from './constants.ts';
-import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2 } from 'lucide-react';
+import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2, Package } from 'lucide-react';
 import { db } from './firebase.ts';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 // expressions/emotes removed per user request
 
 // Start with empty levels
 const DEFAULT_LEVELS: LevelMetadata[] = [];
+
+// Difficulty colors for Color Difficulty mod
+const getDifficultyColor = (difficulty: string) => {
+  switch (difficulty) {
+    case 'Easy': return '#4ade80'; // text-green-400
+    case 'Normal': return '#facc15'; // text-yellow-400
+    case 'Hard': return '#f87171'; // text-red-400
+    case 'Insane': return '#a855f7'; // text-purple-500
+    case 'Extreme': return '#ec4899'; // text-pink-500
+    default: return '#6b7280';
+  }
+};
+
+const getDifficultyStars = (difficulty: string) => {
+  switch (difficulty) {
+    case 'Easy': return 2;
+    case 'Normal': return 4;
+    case 'Hard': return 6;
+    case 'Insane': return 8;
+    case 'Extreme': return 12;
+    default: return 0;
+  }
+};
 
 const App: React.FC = () => {
   // Screens
@@ -838,6 +861,7 @@ const App: React.FC = () => {
                     <Globe size={32} className="sm:w-12 sm:h-12 text-purple-300 group-hover:text-white" />
                     <span className="font-bold font-orbitron text-sm sm:text-lg">TOP 50</span>
                  </button>
+
                      {/* HARDEST 10 removed from main menu */}
              </div>
 
@@ -1015,6 +1039,45 @@ const App: React.FC = () => {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Master Mods Toggle */}
+                <div className="w-full">
+                  <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-2">
+                    Game Mods
+                  </h3>
+                  <div className="bg-slate-700 border border-slate-600 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-green-400">Enable All Mods</h4>
+                        <p className="text-xs text-slate-400">Toggle all game modifications on/off</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const currentState = localStorage.getItem('mods_master_enabled') === 'true';
+                          const newState = !currentState;
+                          localStorage.setItem('mods_master_enabled', newState.toString());
+                          
+                          // Update all individual mod settings to match master setting
+                          const mods = ['mod_fps_enabled', 'mod_progressbar_enabled', 'mod_colordifficulty_enabled', 
+                                       'mod_cubetrail_enabled', 'mod_rainbowtrail_enabled', 'mod_orbhitbox_enabled', 
+                                       'mod_reversegravity_enabled'];
+                          mods.forEach(mod => localStorage.setItem(mod, newState.toString()));
+                          
+                          // Force re-render
+                          setGameState(GameState.MENU);
+                          setTimeout(() => setGameState(GameState.CHARACTER_SELECT), 10);
+                        }}
+                        className={`px-3 py-1 rounded font-bold text-xs transition ${
+                          localStorage.getItem('mods_master_enabled') === 'true' 
+                            ? 'bg-green-600 hover:bg-green-500' 
+                            : 'bg-slate-600 hover:bg-slate-500'
+                        }`}
+                      >
+                        {localStorage.getItem('mods_master_enabled') === 'true' ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1262,13 +1325,29 @@ const App: React.FC = () => {
 
                                  <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 sm:gap-6">
                                      <div className="text-center min-w-[80px] flex flex-col items-center">
-                                         <div className={`font-black uppercase text-sm sm:text-base ${difficultyColors[level.difficulty] || 'text-white'}`}>
-                                            {level.difficulty === 'Unlisted' ? 'Unrated' : level.difficulty}
-                                         </div>
-                                         {level.stars > 0 && (
-                                             <div className="text-yellow-400 text-xs sm:text-sm font-bold flex justify-center items-center gap-1">
-                                                {level.stars} <Star size={10} className="sm:w-3 sm:h-3" fill="currentColor"/>
+                                         {localStorage.getItem('mod_colordifficulty_enabled') === 'true' && level.difficulty !== 'Unlisted' ? (
+                                           <div className="flex flex-col items-center gap-1">
+                                             <div 
+                                               className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center"
+                                               style={{ backgroundColor: getDifficultyColor(level.difficulty) }}
+                                             >
+                                               <Star size={14} className="text-white fill-white" />
                                              </div>
+                                             <div className="text-yellow-400 text-xs font-bold flex justify-center items-center gap-1">
+                                               {getDifficultyStars(level.difficulty)} <Star size={8} fill="currentColor"/>
+                                             </div>
+                                           </div>
+                                         ) : (
+                                           <>
+                                             <div className={`font-black uppercase text-sm sm:text-base ${difficultyColors[level.difficulty] || 'text-white'}`}>
+                                                {level.difficulty === 'Unlisted' ? 'Unrated' : level.difficulty}
+                                             </div>
+                                             {level.stars > 0 && (
+                                                 <div className="text-yellow-400 text-xs sm:text-sm font-bold flex justify-center items-center gap-1">
+                                                    {level.stars} <Star size={10} className="sm:w-3 sm:h-3" fill="currentColor"/>
+                                                 </div>
+                                             )}
+                                           </>
                                          )}
                                      </div>
 

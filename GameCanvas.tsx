@@ -35,6 +35,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [fps, setFps] = useState(0);
+  
+  // FPS tracking
+  const frameCount = useRef(0);
+  const lastFpsUpdate = useRef(performance.now());
+  const fpsUpdateInterval = useRef(500); // Update FPS display every 500ms
   
   const player = useRef({
     x: 100,
@@ -80,15 +86,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     if (shouldRun) {
       obstacles.current = JSON.parse(JSON.stringify(levelData.obstacles));
       const startX = isTestMode ? 100 : levelData.obstacles.length > 0 ? Math.min(...levelData.obstacles.map(o => o.x)) - 200 : 100;
+      const reverseGravityEnabled = localStorage.getItem('mod_reversegravity_enabled') === 'true';
+      const startY = reverseGravityEnabled ? 0 : GROUND_HEIGHT - PLAYER_SIZE;
+      
       player.current = {
         x: startX,
-        y: GROUND_HEIGHT - PLAYER_SIZE,
+        y: startY,
         dy: 0,
         rotation: 0,
         isJumping: false,
         isDead: false,
         onPlatform: false,
-        gravityDirection: 1,
+        gravityDirection: reverseGravityEnabled ? -1 : 1,
         currentSpeed: BASE_SPEED,
         jumpsAvailable: 2,
         inJetpack: false,
@@ -508,12 +517,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.globalAlpha = 1.0;
     });
 
-    // Trail (behind player) — wave only
-    if (player.current.inWave && trail.current.length > 0) {
+    // Trail (behind player)
+    const isCubeTrailEnabled = localStorage.getItem('mod_cubetrail_enabled') === 'true';
+    const isRainbowTrailEnabled = localStorage.getItem('mod_rainbowtrail_enabled') === 'true';
+    
+    if ((player.current.inWave || isCubeTrailEnabled) && trail.current.length > 0) {
       ctx.save();
       for (const t of trail.current) {
         ctx.globalAlpha = Math.max(0, Math.min(1, t.life));
-        ctx.fillStyle = playerColor;
+        
+        if (isRainbowTrailEnabled && t.hue !== undefined) {
+          ctx.fillStyle = `hsl(${t.hue}, 100%, 50%)`;
+        } else {
+          ctx.fillStyle = playerColor;
+        }
+        
         ctx.beginPath();
         ctx.arc(t.x, t.y, 5, 0, Math.PI * 2);
         ctx.fill();
@@ -642,15 +660,34 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const deltaTime = Math.min((time - lastTime) / 16.67, 2.0);
       lastTime = time;
 
+      // FPS calculation
+      frameCount.current++;
+      const currentTime = performance.now();
+      if (currentTime - lastFpsUpdate.current >= fpsUpdateInterval.current) {
+        const fpsValue = Math.round((frameCount.current * 1000) / (currentTime - lastFpsUpdate.current));
+        setFps(fpsValue);
+        frameCount.current = 0;
+        lastFpsUpdate.current = currentTime;
+      }
+
       if (!player.current.isDead && !hasWon.current) {
         // Inline updatePhysics here
         const p = player.current;
 
-        // Trail update (wave only)
-        if (p.inWave) {
-          trail.current.push({ x: p.x + PLAYER_SIZE / 2, y: p.y + PLAYER_SIZE / 2, life: 0.9 });
+        // Trail update
+        const isCubeTrailEnabled = localStorage.getItem('mod_cubetrail_enabled') === 'true';
+        const isRainbowTrailEnabled = localStorage.getItem('mod_rainbowtrail_enabled') === 'true';
+        
+        if (p.inWave || isCubeTrailEnabled) {
+          const hue = isRainbowTrailEnabled ? (Date.now() / 20) % 360 : 0;
+          trail.current.push({ 
+            x: p.x + PLAYER_SIZE / 2, 
+            y: p.y + PLAYER_SIZE / 2, 
+            life: 0.9,
+            hue: hue
+          });
           if (trail.current.length > 26) trail.current.shift();
-        } else {
+        } else if (!isRainbowTrailEnabled) {
           trail.current = [];
         }
 
@@ -834,10 +871,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
             if (obs.type === ObstacleType.ORB) {
               // ORB - yukarı zıplatma
-              if (!obs.passed && orbPressed.current) {
+              const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
+              const orbHitboxBuffer = orbHitboxEnabled ? 15 : 7; // Increased hitbox when mod is enabled
+              
+              // Check if player is within orb hitbox
+              const orbCenterX = obs.x + obs.width / 2;
+              const orbCenterY = obs.y + obs.height / 2;
+              const playerCenterX = p.x + PLAYER_SIZE / 2;
+              const playerCenterY = p.y + PLAYER_SIZE / 2;
+              
+              const distance = Math.sqrt(
+                Math.pow(orbCenterX - playerCenterX, 2) + 
+                Math.pow(orbCenterY - playerCenterY, 2)
+              );
+              
+              const maxDistance = (obs.width / 2) + (PLAYER_SIZE / 2) + orbHitboxBuffer;
+              
+              if (!obs.passed && orbPressed.current && distance <= maxDistance) {
                 obs.passed = true;
                 p.y = obs.y - PLAYER_SIZE;
-                p.dy = -12; // Daha az güçlü zıplama
+                p.dy = -12 * p.gravityDirection; // Respect gravity direction
                 p.isJumping = true;
                 spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.orb);
                 orbPressed.current = false;
@@ -848,7 +901,23 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
             if (obs.type === ObstacleType.GRAVITY_ORB) {
               // Mavi orb - basınca yer çekimini değiştir
-              if (!obs.passed && orbPressed.current) {
+              const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
+              const orbHitboxBuffer = orbHitboxEnabled ? 15 : 7; // Increased hitbox when mod is enabled
+              
+              // Check if player is within orb hitbox
+              const orbCenterX = obs.x + obs.width / 2;
+              const orbCenterY = obs.y + obs.height / 2;
+              const playerCenterX = p.x + PLAYER_SIZE / 2;
+              const playerCenterY = p.y + PLAYER_SIZE / 2;
+              
+              const distance = Math.sqrt(
+                Math.pow(orbCenterX - playerCenterX, 2) + 
+                Math.pow(orbCenterY - playerCenterY, 2)
+              );
+              
+              const maxDistance = (obs.width / 2) + (PLAYER_SIZE / 2) + orbHitboxBuffer;
+              
+              if (!obs.passed && orbPressed.current && distance <= maxDistance) {
                 obs.passed = true;
                 p.gravityDirection = p.gravityDirection === 1 ? -1 : 1;
                 p.dy = 0;
@@ -920,8 +989,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         });
         particles.current = particles.current.filter(pt => pt.life > 0);
 
-        // Trail fade + prune off-screen points (wave only)
-        if (p.inWave) {
+        // Trail fade + prune off-screen points
+        if (p.inWave || isCubeTrailEnabled) {
           const minX = cameraX.current - 60;
           const maxX = cameraX.current + GAME_WIDTH + 60;
           const minY = cameraY.current - 60;
@@ -981,6 +1050,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
             {isTestMode ? 'TEST MODE' : `Attempt #${attempt} — ${progress}%`}
           </div>
+          {localStorage.getItem('mod_progressbar_enabled') === 'true' && (
+            <div className="absolute top-16 left-1/2 transform -translate-x-1/2 w-64 bg-black/40 rounded-full h-3 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+          {localStorage.getItem('mod_fps_enabled') === 'true' && (
+            <div className="absolute bottom-4 left-4 text-green-400 text-sm font-mono pointer-events-none bg-black/40 px-2 py-1 rounded">
+              FPS: {fps}
+            </div>
+          )}
         </>
       )}
       <div className="absolute inset-0 z-10 touch-manipulation pointer-events-none" />
