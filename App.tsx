@@ -866,7 +866,7 @@ const App: React.FC = () => {
              </div>
 
              <div className="mt-4 sm:mt-8 text-center text-slate-500 text-xs sm:text-sm">
-              Versiyon: 1.3
+              Versiyon: 1.3.5
              </div>
           </div>
       );

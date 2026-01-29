@@ -784,8 +784,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // Die on touching top boundary
-        if (p.y <= 0) {
+        // Die on touching top boundary (only when not in wave mode)
+        if (!p.inWave && p.y <= 0) {
           handleDeath();
           return;
         }
