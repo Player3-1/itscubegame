@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(process.cwd(), '.'),
         }
+      },
+      optimizeDeps: {
+        include: ['lucide-react']
       }
     };
 });
