@@ -71,11 +71,17 @@ const App: React.FC = () => {
   const [autoRespawn, setAutoRespawn] = useState<boolean>(() => {
       const v = localStorage.getItem('nd_auto_respawn');
       return v ? JSON.parse(v) : true;
-  });  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
+  }); 
+  const [jumpButton, setJumpButton] = useState<number>(() => {
+      const v = localStorage.getItem('nd_jump_button');
+      return v ? parseInt(v) : 0; // 0 = left click, 1 = right click, 2 = middle click
+  });
+  const [isSettingJumpButton, setIsSettingJumpButton] = useState(false);  const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0); // Progress %
   const [levelSearch, setLevelSearch] = useState("");
   const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
   const [newBestAchieved, setNewBestAchieved] = useState(false);
+  const [starsEarned, setStarsEarned] = useState(0); // Stars earned in current level completion
 
   const getDraftsKey = (name?: string) => `nd_drafts_${name || 'anon'}`;
 
@@ -100,6 +106,12 @@ const App: React.FC = () => {
 
   const saveVerifyDeals = (deals: VerifyDeal[]) => {
     localStorage.setItem('nd_verify_deals', JSON.stringify(deals));
+  };
+
+  const deleteVerifyDeal = (dealId: string) => {
+    const deals = getVerifyDeals();
+    const updated = deals.filter(d => d.id !== dealId);
+    saveVerifyDeals(updated);
   };
 
   const publishVerifiedDraft = (draft: DraftLevel, verifiedBy: string) => {
@@ -288,6 +300,7 @@ const App: React.FC = () => {
                       totalStars: 0,
                       completedLevels: [],
                       starsAwardedLevels: [],
+                      starAwards: {},
                       likedLevels: [],
                       selectedColor: COLORS.player
                   };
@@ -310,6 +323,7 @@ const App: React.FC = () => {
                       totalStars: 0,
                       completedLevels: [],
                       starsAwardedLevels: [],
+                      starAwards: {},
                       likedLevels: [],
                       selectedColor: COLORS.player
                   };
@@ -590,7 +604,17 @@ const App: React.FC = () => {
   };
 
   const deleteLevel = (levelId: string) => {
-      if (!user?.isAdmin) return;
+      const level = levels.find(l => l.id === levelId);
+      if (!level) return;
+      
+      // Check if admin or level author
+      const canDelete = user?.isAdmin || level.author === user?.name;
+      if (!canDelete) {
+          alert('Only the level author or an admin can delete this level.');
+          return;
+      }
+      
+      if (!confirm(`Are you sure you want to delete "${level.name}"?`)) return;
 
       const updatedLevels = levels.filter(l => l.id !== levelId);
       setLevels(updatedLevels);
@@ -618,6 +642,7 @@ const App: React.FC = () => {
       
       // If user doesn't exist (theoretically shouldn't), just show the screen
       if (!user) {
+        setStarsEarned(0);
         setGameState(GameState.GAME_OVER);
         return;
       }
@@ -626,36 +651,39 @@ const App: React.FC = () => {
       const freshUser = db.find(u => u.name === user.name) || user;
 
       let updatedUser = { ...freshUser };
-      let changed = false;
+      let actuallyEarned = 0;
 
       const starsToAward = typeof currentLevel.stars === 'number' ? currentLevel.stars : getDifficultyStars(currentLevel.difficulty);
 
-      const alreadyCompleted = freshUser.completedLevels.includes(currentLevel.id);
-      const starsAwarded = (freshUser.starsAwardedLevels || []).includes(currentLevel.id);
-
-      if (!alreadyCompleted) {
+      // Mark level as completed
+      if (!freshUser.completedLevels.includes(currentLevel.id)) {
           updatedUser.completedLevels = [...freshUser.completedLevels, currentLevel.id];
-          changed = true;
       }
 
-      // Always award stars once per level when completed, even if best was already 100%
-      if (!starsAwarded && starsToAward > 0) {
-          updatedUser.totalStars = (updatedUser.totalStars || 0) + starsToAward;
+      // Award stars if not already awarded - with timestamp for security
+      const starsAlreadyAwarded = (freshUser.starsAwardedLevels || []).includes(currentLevel.id);
+      const starAwardRecord = freshUser.starAwards?.[currentLevel.id];
+      
+      if (!starsAlreadyAwarded && starsToAward > 0) {
+          updatedUser.totalStars = (freshUser.totalStars || 0) + starsToAward;
           updatedUser.starsAwardedLevels = [...(freshUser.starsAwardedLevels || []), currentLevel.id];
-          changed = true;
+          
+          // Track with timestamp for security and audit
+          updatedUser.starAwards = {
+              ...(freshUser.starAwards || {}),
+              [currentLevel.id]: { stars: starsToAward, timestamp: Date.now() }
+          };
+          actuallyEarned = starsToAward;
+      } else if (starsAlreadyAwarded) {
+          // Stars already awarded, show 0
+          actuallyEarned = 0;
       }
       
-      // Force award stars if they were somehow missed but level is 100%
-      const best = freshUser.highestProgress?.[currentLevel.id] || 0;
-      if (best >= 100 && !starsAwarded && starsToAward > 0 && !changed) {
-          updatedUser.totalStars = (updatedUser.totalStars || 0) + starsToAward;
-          updatedUser.starsAwardedLevels = [...(freshUser.starsAwardedLevels || []), currentLevel.id];
-          changed = true;
-      }
+      // Save user data
+      saveUserFull(updatedUser);
       
-      if (changed) {
-        saveUserFull(updatedUser);
-      }
+      // Set earned stars for display
+      setStarsEarned(actuallyEarned);
       setGameState(GameState.GAME_OVER);
   };
 
@@ -671,7 +699,11 @@ const App: React.FC = () => {
           const updatedUser: User = {
             ...freshUser,
             totalStars: (freshUser.totalStars || 0) + starsToAward,
-            starsAwardedLevels: [...(freshUser.starsAwardedLevels || []), level.id]
+            starsAwardedLevels: [...(freshUser.starsAwardedLevels || []), level.id],
+            starAwards: {
+              ...(freshUser.starAwards || {}),
+              [level.id]: { stars: starsToAward, timestamp: Date.now() }
+            }
           };
           saveUserFull(updatedUser);
         }
@@ -826,6 +858,80 @@ const App: React.FC = () => {
 
   // --- RENDERERS ---
 
+  if (gameState === GameState.LOGIN) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] px-4">
+              <h1 className="text-4xl sm:text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-6 sm:mb-12 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] font-orbitron transform -skew-x-6 text-center">
+                 CUBE DASH
+              </h1>
+
+              <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl border border-slate-700 w-full max-w-md">
+                  <h2 className="text-2xl font-bold mb-6 text-center font-orbitron">
+                      {isRegistering ? 'SIGN UP' : 'LOGIN'}
+                  </h2>
+                  
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm text-slate-400 mb-1">Username</label>
+                          <input
+                              type="text"
+                              value={loginName}
+                              onChange={(e) => setLoginName(e.target.value)}
+                              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:border-cyan-400 focus:outline-none text-white"
+                              placeholder="Your username"
+                          />
+                      </div>
+                      
+                      <div>
+                          <label className="block text-sm text-slate-400 mb-1">Password</label>
+                          <input
+                              type="password"
+                              value={loginPass}
+                              onChange={(e) => setLoginPass(e.target.value)}
+                              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:border-cyan-400 focus:outline-none text-white"
+                              placeholder="Your password"
+                          />
+                      </div>
+
+                      {showAdminCodeInput && (
+                          <div>
+                              <label className="block text-sm text-pink-400 mb-1">Admin Code</label>
+                              <input
+                                  type="password"
+                                  value={adminCode}
+                                  onChange={(e) => setAdminCode(e.target.value)}
+                                  className="w-full px-4 py-3 bg-slate-700 border border-pink-500 rounded-lg focus:border-pink-400 focus:outline-none text-white"
+                                  placeholder="Enter admin code"
+                              />
+                          </div>
+                      )}
+
+                      {loginError && (
+                          <div className="text-red-400 text-sm text-center bg-red-900/30 p-2 rounded">
+                              {loginError}
+                          </div>
+                      )}
+
+                      <button
+                          onClick={showAdminCodeInput ? handleAdminCodeSubmit : handleAuthAction}
+                          className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-colors font-orbitron"
+                      >
+                          {showAdminCodeInput ? 'Verify Admin Code' : (isRegistering ? 'Sign Up' : 'Login')}
+                      </button>
+
+                      <div className="text-center mt-4">
+                          <button
+                              onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }}
+                              className="text-cyan-400 hover:text-cyan-300 text-sm"
+                          >
+                              {isRegistering ? 'Already have an account? Login' : "Don't have an account? Sign up"}
+                          </button>
+                      </div>
+                  </div>
+              </div>
+        </div>
+      );
+  }
 
   if (gameState === GameState.MENU) {
       return (
@@ -854,6 +960,25 @@ const App: React.FC = () => {
                                 <input type="checkbox" checked={autoRespawn} onChange={(e) => { setAutoRespawn(e.target.checked); localStorage.setItem('nd_auto_respawn', JSON.stringify(e.target.checked)); }} />
                                 <span className="text-sm">Auto respawn (respawn instantly on death)</span>
                             </label>
+                        </div>
+                        <div className="mb-4">
+                            <span className="text-sm block mb-2">Jump Button:</span>
+                            <button 
+                                onClick={() => {
+                                    setIsSettingJumpButton(true);
+                                    const handleMouseDown = (e: MouseEvent) => {
+                                        setJumpButton(e.button);
+                                        localStorage.setItem('nd_jump_button', e.button.toString());
+                                        setIsSettingJumpButton(false);
+                                        window.removeEventListener('mousedown', handleMouseDown);
+                                    };
+                                    window.addEventListener('mousedown', handleMouseDown);
+                                }}
+                                className={`px-4 py-2 rounded font-bold ${isSettingJumpButton ? 'bg-yellow-500 animate-pulse' : 'bg-slate-600 hover:bg-slate-500'}`}
+                            >
+                                {isSettingJumpButton ? 'Click any button...' : 
+                                  (jumpButton === 0 ? 'Left Click' : jumpButton === 1 ? 'Right Click' : 'Middle Click')}
+                            </button>
                         </div>
                         <div className="flex gap-2 justify-end">
                             <button onClick={() => setShowSettings(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Close</button>
@@ -893,11 +1018,27 @@ const App: React.FC = () => {
                     <span className="font-bold font-orbitron text-sm sm:text-lg">TOP 50</span>
                  </button>
 
+                 <button
+                    onClick={() => setGameState(GameState.MY_LEVELS)}
+                    className="group w-32 h-32 sm:w-40 sm:h-40 bg-emerald-900 border-2 border-emerald-700 hover:border-emerald-500 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                 >
+                    <PenTool size={32} className="sm:w-12 sm:h-12 text-emerald-300 group-hover:text-white" />
+                    <span className="font-bold font-orbitron text-sm sm:text-lg">LEVEL EDITOR</span>
+                 </button>
+
+                 <button
+                    onClick={() => setGameState(GameState.UNVERIFIED_LEVELS)}
+                    className="group w-32 h-32 sm:w-40 sm:h-40 bg-amber-900 border-2 border-amber-700 hover:border-amber-500 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(245,158,11,0.4)]"
+                 >
+                    <Eye size={32} className="sm:w-12 sm:h-12 text-amber-300 group-hover:text-white" />
+                    <span className="font-bold font-orbitron text-sm sm:text-lg">VERIFY LEVELS</span>
+                 </button>
+
                      {/* HARDEST 10 removed from main menu */}
              </div>
 
              <div className="mt-4 sm:mt-8 text-center text-slate-500 text-xs sm:text-sm">
-              Versiyon: 1.3.5
+              Version: 1.4.1
              </div>
           </div>
       );
@@ -1083,6 +1224,151 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      );
+  } else if (gameState === GameState.MY_LEVELS) {
+      // Get user's drafts
+      const myDrafts = user ? drafts.filter(d => d.author === user.name) : [];
+      const displayedDrafts = myDrafts.slice(0, 10);
+
+      return (
+          <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center">
+              <button
+                  onClick={() => setGameState(GameState.MENU)}
+                  className="mb-4 sm:mb-6 p-2 hover:bg-slate-800 rounded-full self-start"
+              >
+                  <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
+              </button>
+              <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-emerald-400 mb-4 text-center">
+                MY LEVELS
+              </h2>
+
+              <div className="flex gap-4 mb-6">
+                  <button
+                      onClick={() => {
+                          setCurrentDraft(null);
+                          setVerifyDraft(null);
+                          setVerifyDeal(null);
+                          setGameState(GameState.EDITOR);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-bold flex items-center gap-2"
+                  >
+                      <PenTool size={18} /> CREATE NEW
+                  </button>
+              </div>
+
+              <div className="w-full max-w-2xl space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                  {displayedDrafts.length === 0 && (
+                      <div className="text-center text-slate-500 py-10">
+                          You haven't created any levels yet.
+                      </div>
+                  )}
+                  {displayedDrafts.map((draft) => (
+                      <div key={draft.id} className="bg-slate-800 p-3 sm:p-4 rounded-xl border border-slate-700 flex items-center justify-between">
+                          <div className="flex-1">
+                              <h3 className="font-bold text-lg">{draft.name}</h3>
+                              <p className="text-sm text-slate-400">
+                                  {draft.verified ? (
+                                      <span className="text-emerald-400 font-bold">✓ Verified</span>
+                                  ) : (
+                                      <span>Draft</span>
+                                  )}
+                                  {draft.verifiedBy && (
+                                      <span className="text-emerald-400 text-xs ml-2">by {draft.verifiedBy}</span>
+                                  )}
+                              </p>
+                          </div>
+                          <div className="flex gap-2">
+                              <button
+                                  onClick={() => openDraftInEditor(draft)}
+                                  className="bg-cyan-600 hover:bg-cyan-500 px-3 py-2 rounded font-bold text-sm"
+                              >
+                                  EDIT
+                              </button>
+                              <button
+                                  onClick={() => {
+                                    if (confirm(`Delete "${draft.name}"?`)) {
+                                        deleteDraft(draft.id);
+                                    }
+                                  }}
+                                  className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-bold text-sm"
+                              >
+                                  DELETE
+                              </button>
+                              {!draft.verified && (
+                                  <>
+                                      <button
+                                          onClick={() => requestVerify(draft)}
+                                          className="bg-yellow-600 hover:bg-yellow-500 px-3 py-2 rounded font-bold text-sm"
+                                      >
+                                          VERIFY
+                                      </button>
+                                      <button
+                                          onClick={() => sendVerifyDeal(draft)}
+                                          className="bg-purple-700 hover:bg-purple-600 px-3 py-2 rounded font-bold text-sm"
+                                      >
+                                          SEND
+                                      </button>
+                                  </>
+                              )}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      );
+  } else if (gameState === GameState.UNVERIFIED_LEVELS) {
+      // Get open verify deals
+      const openDeals = getVerifyDeals().filter(d => d.status === 'open');
+
+      return (
+          <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center">
+              <button
+                  onClick={() => setGameState(GameState.MENU)}
+                  className="mb-4 sm:mb-6 p-2 hover:bg-slate-800 rounded-full self-start"
+              >
+                  <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
+              </button>
+              <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-amber-400 mb-4 text-center">
+                UNVERIFIED LEVELS
+              </h2>
+
+              <div className="w-full max-w-2xl space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                  {openDeals.length === 0 && (
+                      <div className="text-center text-slate-500 py-10">
+                          No levels waiting for verification.
+                      </div>
+                  )}
+                  {openDeals.map((deal) => (
+                      <div key={deal.id} className="bg-slate-800 p-3 sm:p-4 rounded-xl border border-amber-700 flex items-center justify-between">
+                          <div className="flex-1">
+                              <h3 className="font-bold text-lg">{deal.name}</h3>
+                              <p className="text-sm text-slate-400">
+                                  by {deal.author}
+                              </p>
+                          </div>
+                          <div className="flex gap-2">
+                              <button
+                                  onClick={() => startVerifyDealPlay(deal)}
+                                  className="bg-amber-600 hover:bg-amber-500 px-3 py-2 rounded font-bold text-sm"
+                              >
+                                  PLAY & VERIFY
+                              </button>
+                              <button
+                                  onClick={() => {
+                                    if (confirm(`Delete "${deal.name}"?`)) {
+                                        deleteVerifyDeal(deal.id);
+                                        window.location.reload();
+                                    }
+                                  }}
+                                  className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-bold text-sm"
+                              >
+                                  DELETE
+                              </button>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
       );
   } else if (gameState === GameState.LEADERBOARD) {
       const scrollToBottom = () => {
@@ -1303,10 +1589,7 @@ const App: React.FC = () => {
                                             </div>
                                         )}
                                      </div>
-                                     <p className="text-sm text-slate-400">by {level.author}</p>
-                                     {level.verifiedBy && (
-                                       <p className="text-xs text-emerald-400 font-bold">verified by: {level.verifiedBy}</p>
-                                     )}
+                                      <p className="text-sm text-slate-400">by {level.author}{level.verifiedBy && <span className="text-emerald-400 font-bold ml-2">| verifier: {level.verifiedBy}</span>}</p>
                                      <div className="flex items-center gap-2 sm:gap-4 mt-2 text-xs text-slate-500">
                                          <span className="flex items-center gap-1"><Eye size={12}/> {level.plays || 0}</span>
                                          <button
@@ -1473,7 +1756,7 @@ const App: React.FC = () => {
               onSaveDraft={saveDraft}
               onRequestVerify={requestVerify}
               onSendVerifyDeal={sendVerifyDeal}
-              onExit={() => setGameState(GameState.LEVEL_SELECT)}
+              onExit={() => setGameState(GameState.MENU)}
           />
       );
   }
@@ -1486,6 +1769,7 @@ const App: React.FC = () => {
              setGameState={setGameState}
              setScore={setScore}
              levelData={currentLevel.data}
+             jumpButton={jumpButton}
              onDeath={() => {
                  if (autoRespawn) {
                      setScore(0);
@@ -1518,14 +1802,8 @@ const App: React.FC = () => {
                  return;
                }
                if (verifyDeal && user?.name) {
-                 // Mark deal verified and publish
-                 const deals = getVerifyDeals();
-                 const updatedDeals = deals.map(d =>
-                   d.id === verifyDeal.id
-                     ? { ...d, status: 'verified' as const, verifiedBy: user.name, verifiedAt: Date.now() }
-                     : d
-                 );
-                 saveVerifyDeals(updatedDeals);
+                 // Delete deal and publish
+                 deleteVerifyDeal(verifyDeal.id);
                  publishVerifiedDraft({
                    id: verifyDeal.draftId,
                    name: verifyDeal.name,
@@ -1578,10 +1856,10 @@ const App: React.FC = () => {
                      <span className="absolute mt-6 font-mono font-bold text-lg sm:text-xl">{score}%</span>
                   </div>
 
-                  {isWin && currentLevel.stars > 0 && (
+                  {isWin && starsEarned > 0 && (
                       <div className="flex justify-center items-center gap-2 text-yellow-400 text-lg sm:text-2xl font-bold mb-6 sm:mb-8 bg-yellow-900/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
                           <Trophy size={24} className="sm:w-8 sm:h-8" />
-                          +{currentLevel.stars} STARS EARNED!
+                          +{starsEarned} STARS EARNED!
                       </div>
                   )}
 

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ObstacleType, LevelData, Obstacle, GameState, DraftLevel } from './types.ts';
 import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from './constants.ts';
-import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Handshake } from 'lucide-react';
+import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Handshake, Zap } from 'lucide-react';
 import { GameCanvas } from './GameCanvas.tsx';
 
 interface LevelEditorProps {
@@ -31,23 +31,23 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
 
   const toolGroups = {
     blocks: [
-      { type: ObstacleType.BLOCK, icon: Box, label: 'Block', color: COLORS.block },
+      { type: ObstacleType.BLOCK, icon: Square, label: 'Block', color: COLORS.block },
       { type: ObstacleType.HALF_BLOCK, icon: GripHorizontal, label: 'Half Block', color: COLORS.halfBlock },
-      { type: ObstacleType.PASS_THROUGH, icon: Box, label: 'Pass Through', color: COLORS.passThrough },
-      { type: ObstacleType.DECOR_1, icon: Box, label: 'Decor 1', color: '#10b981' },
+      { type: ObstacleType.PASS_THROUGH, icon: Square, label: 'Pass Through', color: COLORS.passThrough },
+      { type: ObstacleType.DECOR_1, icon: Square, label: 'Decor 1', color: '#10b981' },
       { type: ObstacleType.FLOOR_GAP, icon: ArrowRight, label: 'Gap', color: '#fff' }
     ],
     interactive: [
-      { type: ObstacleType.BOUNCER, icon: ArrowUp, label: 'Bouncer', color: COLORS.bouncer },
-      { type: ObstacleType.GRAVITY_UP, icon: Box, label: 'Gravity Up', color: COLORS.gravityUp },
-      { type: ObstacleType.GRAVITY_NORMAL, icon: Box, label: 'Gravity Normal', color: COLORS.gravityNormal },
-      { type: ObstacleType.SLOW_BLOCK, icon: Box, label: 'Slow Block', color: COLORS.slowBlock },
-      { type: ObstacleType.NORMAL_BLOCK, icon: Box, label: 'Normal Block', color: COLORS.normalBlock },
-      { type: ObstacleType.FAST_BLOCK, icon: Box, label: 'Fast Block', color: COLORS.fastBlock },
-      { type: ObstacleType.ORB, icon: Box, label: 'Orb', color: COLORS.orb },
-      { type: ObstacleType.GRAVITY_ORB, icon: Box, label: 'Gravity Orb', color: COLORS.gravityOrb },
-      { type: ObstacleType.WAVE_PORTAL, icon: Box, label: 'Wave', color: '#8b5cf6' },
-      { type: ObstacleType.CUBE_PORTAL, icon: Box, label: 'Cube', color: '#a855f7' }
+      { type: ObstacleType.BOUNCER, icon: Zap, label: 'Bouncer', color: COLORS.bouncer },
+      { type: ObstacleType.GRAVITY_UP, icon: Zap, label: 'Gravity Up', color: COLORS.gravityUp },
+      { type: ObstacleType.GRAVITY_NORMAL, icon: Zap, label: 'Gravity Normal', color: COLORS.gravityNormal },
+      { type: ObstacleType.SLOW_BLOCK, icon: Zap, label: 'Slow Block', color: COLORS.slowBlock },
+      { type: ObstacleType.NORMAL_BLOCK, icon: Zap, label: 'Normal Block', color: COLORS.normalBlock },
+      { type: ObstacleType.FAST_BLOCK, icon: Zap, label: 'Fast Block', color: COLORS.fastBlock },
+      { type: ObstacleType.ORB, icon: Zap, label: 'Orb', color: COLORS.orb },
+      { type: ObstacleType.GRAVITY_ORB, icon: Zap, label: 'Gravity Orb', color: COLORS.gravityOrb },
+      { type: ObstacleType.WAVE_PORTAL, icon: Zap, label: 'Wave', color: '#8b5cf6' },
+      { type: ObstacleType.CUBE_PORTAL, icon: Zap, label: 'Cube', color: '#a855f7' }
     ],
     spikes: [
       { type: ObstacleType.SPIKE, icon: Triangle, label: 'Spike', color: COLORS.spike },
@@ -399,11 +399,24 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
       if (targetId == null) return;
 
       setObstacles((prev) =>
-        prev.map((o) =>
-          o.id === targetId
-            ? { ...o, rotation: ((((o.rotation ?? 0) + delta) % 360) + 360) % 360 }
-            : o
-        )
+        prev.map((o) => {
+          if (o.id !== targetId) return o;
+          
+          const newRotation = ((((o.rotation ?? 0) + delta) % 360) + 360) % 360;
+          
+          // For SMALL_SPIKE types, keep them at grid bottom edge
+          if (o.type === ObstacleType.SMALL_SPIKE || o.type === ObstacleType.SMALL_SPIKE_DOWN || 
+              o.type === ObstacleType.FAKE_SMALL_SPIKE || o.type === ObstacleType.FAKE_SMALL_SPIKE_DOWN) {
+            
+            // Snap to nearest grid position at bottom edge
+            const gridY = Math.floor(o.y / GRID_SIZE) * GRID_SIZE + GRID_SIZE - (GRID_SIZE / 2);
+            const gridX = Math.floor(o.x / GRID_SIZE) * GRID_SIZE;
+            
+            return { ...o, rotation: newRotation, y: gridY, x: gridX };
+          }
+          
+          return { ...o, rotation: newRotation };
+        })
       );
       setLastPlacedObstacleId(targetId);
     };
@@ -591,40 +604,25 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
                 className="bg-slate-900 text-white px-3 py-2 rounded border border-slate-700 flex-1 sm:flex-none"
                 placeholder="Level Name"
              />
-             <div className="flex items-center gap-2">
-
-             </div>
-           </div>
-           <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
-              <button
-                onClick={handleVerify}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold shadow-lg transition flex items-center gap-2"
-              >
-                <CheckCircle size={18} /> VERIFY
-              </button>
-              <button
-                onClick={handleSendVerifyDeal}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded font-bold shadow-lg transition flex items-center gap-2"
-              >
-                <Handshake size={18} /> SEND VERIFY DEAL
-              </button>
-              <button
-                 onClick={toggleTest}
-                 className={`px-3 sm:px-4 py-2 rounded font-bold flex gap-2 items-center text-sm sm:text-base ${isTesting ? 'bg-orange-500 hover:bg-orange-400' : 'bg-cyan-600 hover:bg-cyan-500'}`}
-              >
-                 {isTesting ? <><Square size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> EDIT</> : <><Play size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> TEST</>}
-              </button>
-              {!isTesting && (
-                 <>
-                     <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Exit</button>
-                     <button onClick={handleSaveDraft} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
-                         <Save size={16} className="sm:w-5 sm:h-5" /> SAVE DRAFT
-                     </button>
-                     <button onClick={handleVerify} className="px-3 sm:px-4 py-2 bg-yellow-600 rounded font-bold hover:bg-yellow-500 text-sm sm:text-base">VERIFY</button>
-                     <button onClick={handleSendVerifyDeal} className="px-3 sm:px-4 py-2 bg-purple-700 rounded font-bold hover:bg-purple-600 text-sm sm:text-base">SEND VERIFY DEAL</button>
-                 </>
-              )}
-           </div>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
+               <button
+                  onClick={toggleTest}
+                  className={`px-3 sm:px-4 py-2 rounded font-bold flex gap-2 items-center text-sm sm:text-base ${isTesting ? 'bg-orange-500 hover:bg-orange-400' : 'bg-cyan-600 hover:bg-cyan-500'}`}
+               >
+                  {isTesting ? <><Square size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> EDIT</> : <><Play size={16} className="sm:w-5 sm:h-5" fill="currentColor"/> TEST</>}
+               </button>
+               {!isTesting && (
+                  <>
+                      <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Exit</button>
+                      <button onClick={handleSaveDraft} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
+                          <Save size={16} className="sm:w-5 sm:h-5" /> SAVE DRAFT
+                      </button>
+                      <button onClick={handleVerify} className="px-3 sm:px-4 py-2 bg-yellow-600 rounded font-bold hover:bg-yellow-500 text-sm sm:text-base">VERIFY</button>
+                      <button onClick={handleSendVerifyDeal} className="px-3 sm:px-4 py-2 bg-purple-700 rounded font-bold hover:bg-purple-600 text-sm sm:text-base">SEND VERIFY DEAL</button>
+                  </>
+               )}
+            </div>
         </div>
 
        {isTesting ? (
@@ -672,19 +670,19 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
                         onClick={() => setSelectedCategory('blocks')}
                         className={`px-4 py-2 rounded font-bold ${selectedCategory === 'blocks' ? 'bg-cyan-600' : 'bg-slate-700 hover:bg-slate-600'}`}
                     >
-                        Bloklar
+                        ⬛ Blocks
                     </button>
                     <button
                         onClick={() => setSelectedCategory('interactive')}
                         className={`px-4 py-2 rounded font-bold ${selectedCategory === 'interactive' ? 'bg-cyan-600' : 'bg-slate-700 hover:bg-slate-600'}`}
                     >
-                        Etkileşimli
+                        ⚡ Interactive
                     </button>
                     <button
                         onClick={() => setSelectedCategory('spikes')}
                         className={`px-4 py-2 rounded font-bold ${selectedCategory === 'spikes' ? 'bg-cyan-600' : 'bg-slate-700 hover:bg-slate-600'}`}
                     >
-                        Dikenler
+                        ⚠️ Spikes
                     </button>
                 </div>
 

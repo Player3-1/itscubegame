@@ -17,6 +17,7 @@ interface GameCanvasProps {
   playerFace?: string;
   isTestMode?: boolean;
   onProgressUpdate?: (progress: number) => void;
+  jumpButton?: number;
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
@@ -31,7 +32,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   isTestMode = false,
   attempt = 0,
   progress = 0,
-  onProgressUpdate
+  onProgressUpdate,
+  jumpButton = 0
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -110,11 +112,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       isHoldingJump.current = false;
       jumpQueued.current = false;
       setScore(0);
-      setIsInitialized(true);
     }
-
-    return () => { };
   }, [gameState, levelData, setScore, isTestMode, attempt]);
+
+  useEffect(() => {
+    if (gameState === GameState.PLAYING || isTestMode) {
+      if (levelData && levelData.obstacles) {
+        setIsInitialized(true);
+      }
+    } else {
+      setIsInitialized(false);
+    }
+  }, [gameState, isTestMode, levelData]);
 
   // Input Event Listeners
   useEffect(() => {
@@ -142,7 +151,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) {
+      const jumpBtn = jumpButton ?? 0;
+      if (e.button === jumpBtn) {
         isHoldingJump.current = true;
         jumpQueued.current = true;
         orbPressed.current = true;
@@ -228,7 +238,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const p = player.current;
     // Clear canvas - fill entire canvas
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    ctx.fillRect(0, 0, canvasRef.current?.width || GAME_WIDTH, canvasRef.current?.height || GAME_HEIGHT);
+
+    if (!isInitialized) {
+      return;
+    }
 
     ctx.save();
     ctx.translate(-cameraX.current, -cameraY.current);
@@ -631,362 +645,360 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.restore();
   };
 
+  // Physics Update
+  const updatePhysics = (deltaTime: number) => {
+    if (!isInitialized || player.current.isDead || hasWon.current) return;
+
+    const p = player.current;
+
+    // Trail update (wave only)
+    if (p.inWave) {
+      trail.current.push({ x: p.x + PLAYER_SIZE / 2, y: p.y + PLAYER_SIZE / 2, life: 0.9 });
+      if (trail.current.length > 26) trail.current.shift();
+    } else {
+      trail.current = [];
+    }
+
+    // Horizontal Movement
+    p.x += p.currentSpeed * deltaTime;
+    cameraX.current = p.x - 100;
+
+    // Camera Y: no vertical follow in normal mode
+    if (p.inWave) {
+      cameraY.current = 0;
+    }
+
+    // Determine Floor Level
+    let floorY = p.gravityDirection === 1 ? GROUND_HEIGHT - PLAYER_SIZE : 0;
+
+    const overGap = obstacles.current.some(obs =>
+      obs.type === ObstacleType.FLOOR_GAP &&
+      p.x + PLAYER_SIZE > obs.x + 5 &&
+      p.x < obs.x + obs.width - 5
+    );
+
+    if (overGap) {
+      floorY = p.gravityDirection === 1 ? GAME_HEIGHT + 200 : -200;
+    }
+
+    for (const obs of obstacles.current) {
+      if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
+        if (p.x + PLAYER_SIZE > obs.x && p.x < obs.x + obs.width) {
+          const blockTop = p.gravityDirection === 1 ? obs.y - PLAYER_SIZE : obs.y + obs.height;
+          const condition = p.gravityDirection === 1 ? p.y <= blockTop + 15 : p.y >= blockTop - 15;
+          if (condition) {
+            const better = p.gravityDirection === 1 ? blockTop < floorY : blockTop > floorY;
+            if (better) {
+              floorY = blockTop;
+            }
+          }
+        }
+      }
+    }
+
+    // Vertical Movement
+    if (p.inWave) {
+      const waveAccel = 0.65;
+      const waveMaxSpeed = 7.5;
+      const dir = isHoldingJump.current ? -1 : 1;
+
+      // accelerate toward target vertical speed
+      const targetDy = dir * waveMaxSpeed;
+      p.dy += (targetDy - p.dy) * waveAccel * deltaTime;
+      // clamp
+      if (p.dy > waveMaxSpeed) p.dy = waveMaxSpeed;
+      if (p.dy < -waveMaxSpeed) p.dy = -waveMaxSpeed;
+
+      p.y += p.dy * deltaTime;
+    } else {
+      p.dy += GRAVITY * p.gravityDirection * deltaTime;
+      p.y += p.dy * deltaTime;
+    }
+
+    const onFloor = p.gravityDirection === 1 ? p.y >= floorY : p.y <= floorY;
+    if (onFloor) {
+      p.y = floorY;
+      p.dy = 0;
+      p.onPlatform = true;
+      p.isJumping = false;
+      p.jumpsAvailable = 0; // Double jump disabled
+
+      if (p.inWave) {
+        // Wave on ground: look forward
+        p.rotation = 90;
+      } else {
+        const snap = Math.round(p.rotation / 90) * 90;
+        if (Math.abs(snap - p.rotation) > 1) {
+          p.rotation += (snap - p.rotation) * 0.2 * deltaTime;
+        } else {
+          p.rotation = snap;
+        }
+      }
+    } else {
+      p.onPlatform = false;
+      if (p.inWave) {
+        // Wave: point up when rising, point down when falling
+        p.rotation = p.dy < 0 ? 180 : 0;
+      } else {
+        p.rotation += 6 * deltaTime * p.gravityDirection;
+      }
+    }
+
+    // Ceiling collision removed for normal gravity
+    if (p.gravityDirection === -1) {
+      if (p.y >= GROUND_HEIGHT - PLAYER_SIZE) {
+        p.y = GROUND_HEIGHT - PLAYER_SIZE;
+        p.dy = 0;
+      }
+    }
+
+    // Die on touching top boundary
+    if (p.y <= 0) {
+      handleDeath();
+    }
+
+    // Wave mode: auto ceiling 12 blocks above ground
+    if (p.inWave) {
+      const ceilingY = GROUND_HEIGHT - 30 * 12;
+      if (p.y <= ceilingY) {
+        p.y = ceilingY;
+        p.dy = 0;
+        handleDeath();
+      }
+    }
+
+    // Jump Handling
+    if (!p.inWave && (p.onPlatform) && (isHoldingJump.current || jumpQueued.current)) {
+      p.dy = JUMP_FORCE * p.gravityDirection;
+      p.isJumping = true;
+      p.onPlatform = false;
+      p.y -= 2 * p.gravityDirection;
+      jumpQueued.current = false;
+    }
+
+    // Collision Detection
+    const hitBoxBuffer = 6;
+
+    for (const obs of obstacles.current) {
+      if (obs.x > p.x + 100 || obs.x + obs.width < p.x - 100) continue;
+
+      const a = getRotatedAabb(obs);
+
+      if (
+        p.x + PLAYER_SIZE - hitBoxBuffer > a.x + hitBoxBuffer &&
+        p.x + hitBoxBuffer < a.x + a.w - hitBoxBuffer &&
+        p.y + PLAYER_SIZE - hitBoxBuffer > a.y + hitBoxBuffer &&
+        p.y + hitBoxBuffer < a.y + a.h - hitBoxBuffer
+      ) {
+        if (obs.type === ObstacleType.GRAVITY_UP) {
+          p.gravityDirection = -1;
+          p.dy = 0;
+          p.isJumping = false;
+          continue;
+        }
+
+        if (obs.type === ObstacleType.GRAVITY_NORMAL) {
+          p.gravityDirection = 1;
+          p.dy = 0;
+          p.isJumping = false;
+          continue;
+        }
+
+        if (obs.type === ObstacleType.WAVE_PORTAL) {
+          p.inWave = true;
+          p.dy = 0;
+          p.isJumping = false;
+          continue;
+        }
+
+        if (obs.type === ObstacleType.CUBE_PORTAL) {
+          p.inWave = false;
+          p.dy = 0;
+          p.isJumping = false;
+          continue;
+        }
+
+        if (obs.type === ObstacleType.SLOW_BLOCK) {
+          p.currentSpeed = BASE_SPEED * 0.7; // 30% yavaşlat
+          spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.slowBlock);
+          continue;
+        }
+
+        if (obs.type === ObstacleType.NORMAL_BLOCK) {
+          p.currentSpeed = BASE_SPEED; // Normal hıza döndür
+          spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.normalBlock);
+          continue;
+        }
+
+        if (obs.type === ObstacleType.FAST_BLOCK) {
+          p.currentSpeed = BASE_SPEED * 1.25; // 25% hızlandır
+          spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.fastBlock);
+          continue;
+        }
+
+        if (obs.type === ObstacleType.ORB) {
+          const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
+          const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
+          const orbCenterX = obs.x + obs.width / 2;
+          const orbCenterY = obs.y + obs.height / 2;
+          const playerCenterX = p.x + PLAYER_SIZE / 2;
+          const playerCenterY = p.y + PLAYER_SIZE / 2;
+          const distance = Math.sqrt(
+            Math.pow(orbCenterX - playerCenterX, 2) +
+            Math.pow(orbCenterY - playerCenterY, 2)
+          );
+          const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
+          // ORB - yukarı zıplatma
+          if (!obs.passed && orbPressed.current && distance <= maxDistance) {
+            obs.passed = true;
+            p.y = obs.y - PLAYER_SIZE;
+            p.dy = -12 * p.gravityDirection;
+            p.isJumping = true;
+            spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.orb);
+            setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
+          }
+          continue;
+        }
+
+        if (obs.type === ObstacleType.GRAVITY_ORB) {
+          const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
+          const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
+          const orbCenterX = obs.x + obs.width / 2;
+          const orbCenterY = obs.y + obs.height / 2;
+          const playerCenterX = p.x + PLAYER_SIZE / 2;
+          const playerCenterY = p.y + PLAYER_SIZE / 2;
+          const distance = Math.sqrt(
+            Math.pow(orbCenterX - playerCenterX, 2) +
+            Math.pow(orbCenterY - playerCenterY, 2)
+          );
+          const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
+          // Mavi orb - basınca yer çekimini değiştir
+          if (!obs.passed && distance <= maxDistance) {
+            obs.passed = true;
+            p.gravityDirection = p.gravityDirection === 1 ? -1 : 1;
+            p.dy = 0;
+            p.isJumping = false;
+            spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.gravityOrb);
+            setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
+          }
+          continue;
+        }
+
+        if (p.y > GROUND_HEIGHT && obs.type !== ObstacleType.FLOOR_GAP) {
+          handleDeath();
+          return;
+        }
+
+        if (obs.type === ObstacleType.SPIKE || obs.type === ObstacleType.SPIKE_DOWN ||
+            obs.type === ObstacleType.SMALL_SPIKE || obs.type === ObstacleType.SMALL_SPIKE_DOWN) {
+          handleDeath();
+          return;
+        }
+
+        // Fake spikes are visual only, no collision
+        if (obs.type === ObstacleType.FAKE_SPIKE || obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
+          continue;
+        }
+
+        if (obs.type === ObstacleType.BOUNCER) {
+          if (!obs.passed) {
+            obs.passed = true;
+            p.y = obs.y - PLAYER_SIZE;
+            p.dy = -16;
+            p.isJumping = true;
+            spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, 'rgba(0,240,255,0.9)');
+            setTimeout(() => { obs.passed = false; }, 300);
+          }
+          continue;
+        }
+
+        if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
+          if (Math.abs((p.y + PLAYER_SIZE) - a.y) < 5) {
+            continue;
+          }
+          handleDeath();
+          return;
+        }
+      }
+    }
+
+    // Win/Death Bounds
+    if (p.x > levelData.length) {
+      hasWon.current = true;
+      onWin();
+    }
+    if (p.gravityDirection === 1 && p.y > GAME_HEIGHT + 50 || p.gravityDirection === -1 && p.y < -50) {
+      handleDeath();
+    }
+
+    // Score
+    const progressValue = Math.min(100, (p.x / levelData.length) * 100);
+    setScore(Math.floor(progressValue));
+    onProgressUpdate?.(Math.floor(progressValue));
+
+    // Particles
+    particles.current.forEach(pt => {
+      pt.x += pt.vx;
+      pt.y += pt.vy;
+      pt.life -= 0.05;
+    });
+    particles.current = particles.current.filter(pt => pt.life > 0);
+
+    // Trail fade + prune off-screen points (wave only)
+    if (p.inWave) {
+      const minX = cameraX.current - 60;
+      const maxX = cameraX.current + GAME_WIDTH + 60;
+      const minY = cameraY.current - 60;
+      const maxY = cameraY.current + GAME_HEIGHT + 60;
+      trail.current = trail.current
+        .map((t) => ({ ...t, life: t.life - 0.07 * deltaTime }))
+        .filter((t) =>
+          t.life > 0 &&
+          t.x >= minX && t.x <= maxX &&
+          t.y >= minY && t.y <= maxY
+        );
+    } else {
+      trail.current = [];
+    }
+  };
+
   // Main Loop
   useEffect(() => {
-    const shouldRun = isTestMode || gameState === GameState.PLAYING;
-    if (!shouldRun || !isInitialized) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    console.log('GameCanvas: Mounting main loop');
     let lastTime = performance.now();
 
     const loop = (time: number) => {
       const deltaTime = Math.min((time - lastTime) / 16.67, 2.0);
       lastTime = time;
 
-      if (!player.current.isDead && !hasWon.current) {
-        // Inline updatePhysics here
-        const p = player.current;
+      // Update
+      updatePhysics(deltaTime);
 
-        // Trail update (wave only)
-        if (p.inWave) {
-          trail.current.push({ x: p.x + PLAYER_SIZE / 2, y: p.y + PLAYER_SIZE / 2, life: 0.9 });
-          if (trail.current.length > 26) trail.current.shift();
-        } else {
-          trail.current = [];
-        }
-
-        // Horizontal Movement
-        p.x += p.currentSpeed * deltaTime;
-        cameraX.current = p.x - 100;
-
-        // Camera Y: no vertical follow in normal mode
-        if (p.inWave) {
-          cameraY.current = 0;
-        }
-
-        // Determine Floor Level
-        let floorY = p.gravityDirection === 1 ? GROUND_HEIGHT - PLAYER_SIZE : 0;
-
-        const overGap = obstacles.current.some(obs =>
-          obs.type === ObstacleType.FLOOR_GAP &&
-          p.x + PLAYER_SIZE > obs.x + 5 &&
-          p.x < obs.x + obs.width - 5
-        );
-
-        if (overGap) {
-          floorY = p.gravityDirection === 1 ? GAME_HEIGHT + 200 : -200;
-        }
-
-        for (const obs of obstacles.current) {
-          if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
-            if (p.x + PLAYER_SIZE > obs.x && p.x < obs.x + obs.width) {
-              const blockTop = p.gravityDirection === 1 ? obs.y - PLAYER_SIZE : obs.y + obs.height;
-              const condition = p.gravityDirection === 1 ? p.y <= blockTop + 15 : p.y >= blockTop - 15;
-              if (condition) {
-                const better = p.gravityDirection === 1 ? blockTop < floorY : blockTop > floorY;
-                if (better) {
-                  floorY = blockTop;
-                }
-              }
-            }
-          }
-        }
-
-        // Vertical Movement
-        if (p.inWave) {
-          const waveAccel = 0.65;
-          const waveMaxSpeed = 7.5;
-          const dir = isHoldingJump.current ? -1 : 1;
-
-          // accelerate toward target vertical speed
-          const targetDy = dir * waveMaxSpeed;
-          p.dy += (targetDy - p.dy) * waveAccel * deltaTime;
-          // clamp
-          if (p.dy > waveMaxSpeed) p.dy = waveMaxSpeed;
-          if (p.dy < -waveMaxSpeed) p.dy = -waveMaxSpeed;
-
-          p.y += p.dy * deltaTime;
-        } else {
-          p.dy += GRAVITY * p.gravityDirection * deltaTime;
-          p.y += p.dy * deltaTime;
-        }
-
-        const onFloor = p.gravityDirection === 1 ? p.y >= floorY : p.y <= floorY;
-        if (onFloor) {
-          p.y = floorY;
-          p.dy = 0;
-          p.onPlatform = true;
-          p.isJumping = false;
-          p.jumpsAvailable = 0; // Double jump disabled
-
-          if (p.inWave) {
-            // Wave on ground: look forward
-            p.rotation = 90;
-          } else {
-            const snap = Math.round(p.rotation / 90) * 90;
-            if (Math.abs(snap - p.rotation) > 1) {
-              p.rotation += (snap - p.rotation) * 0.2 * deltaTime;
-            } else {
-              p.rotation = snap;
-            }
-          }
-        } else {
-          p.onPlatform = false;
-          if (p.inWave) {
-            // Wave: point up when rising, point down when falling
-            p.rotation = p.dy < 0 ? 180 : 0;
-          } else {
-            p.rotation += 6 * deltaTime * p.gravityDirection;
-          }
-        }
-
-        // Ceiling collision removed for normal gravity
-        if (p.gravityDirection === -1) {
-          if (p.y >= GROUND_HEIGHT - PLAYER_SIZE) {
-            p.y = GROUND_HEIGHT - PLAYER_SIZE;
-            p.dy = 0;
-          }
-        }
-
-        // Die on touching top boundary
-        if (p.y <= 0) {
-          handleDeath();
-          return;
-        }
-
-        // Wave mode: auto ceiling 12 blocks above ground
-        if (p.inWave) {
-          const ceilingY = GROUND_HEIGHT - 30 * 12;
-          if (p.y <= ceilingY) {
-            p.y = ceilingY;
-            p.dy = 0;
-            handleDeath();
-            return;
-          }
-        }
-
-        // Jump Handling
-        if (!p.inWave && (p.onPlatform) && (isHoldingJump.current || jumpQueued.current)) {
-          p.dy = JUMP_FORCE * p.gravityDirection;
-          p.isJumping = true;
-          p.onPlatform = false;
-          p.y -= 2 * p.gravityDirection;
-          jumpQueued.current = false;
-        }
-
-        // Collision Detection
-        const hitBoxBuffer = 6;
-
-        for (const obs of obstacles.current) {
-          if (obs.x > p.x + 100 || obs.x + obs.width < p.x - 100) continue;
-
-          const a = getRotatedAabb(obs);
-
-          if (
-            p.x + PLAYER_SIZE - hitBoxBuffer > a.x + hitBoxBuffer &&
-            p.x + hitBoxBuffer < a.x + a.w - hitBoxBuffer &&
-            p.y + PLAYER_SIZE - hitBoxBuffer > a.y + hitBoxBuffer &&
-            p.y + hitBoxBuffer < a.y + a.h - hitBoxBuffer
-          ) {
-            if (obs.type === ObstacleType.GRAVITY_UP) {
-              p.gravityDirection = -1;
-              p.dy = 0;
-              p.isJumping = false;
-              continue;
-            }
-
-            if (obs.type === ObstacleType.GRAVITY_NORMAL) {
-              p.gravityDirection = 1;
-              p.dy = 0;
-              p.isJumping = false;
-              continue;
-            }
-
-            if (obs.type === ObstacleType.WAVE_PORTAL) {
-              p.inWave = true;
-              p.dy = 0;
-              p.isJumping = false;
-              continue;
-            }
-
-            if (obs.type === ObstacleType.CUBE_PORTAL) {
-              p.inWave = false;
-              p.dy = 0;
-              p.isJumping = false;
-              continue;
-            }
-
-            if (obs.type === ObstacleType.SLOW_BLOCK) {
-              p.currentSpeed = BASE_SPEED * 0.7; // 30% yavaşlat
-              spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.slowBlock);
-              continue;
-            }
-
-            if (obs.type === ObstacleType.NORMAL_BLOCK) {
-              p.currentSpeed = BASE_SPEED; // Normal hıza döndür
-              spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.normalBlock);
-              continue;
-            }
-
-            if (obs.type === ObstacleType.FAST_BLOCK) {
-              p.currentSpeed = BASE_SPEED * 1.25; // 25% hızlandır
-              spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.fastBlock);
-              continue;
-            }
-
-            if (obs.type === ObstacleType.ORB) {
-              const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
-              const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
-              const orbCenterX = obs.x + obs.width / 2;
-              const orbCenterY = obs.y + obs.height / 2;
-              const playerCenterX = p.x + PLAYER_SIZE / 2;
-              const playerCenterY = p.y + PLAYER_SIZE / 2;
-              const distance = Math.sqrt(
-                Math.pow(orbCenterX - playerCenterX, 2) +
-                Math.pow(orbCenterY - playerCenterY, 2)
-              );
-              const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
-              // ORB - yukarı zıplatma
-              if (!obs.passed && orbPressed.current && distance <= maxDistance) {
-                obs.passed = true;
-                p.y = obs.y - PLAYER_SIZE;
-                p.dy = -12 * p.gravityDirection; 
-                p.isJumping = true;
-                spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.orb);
-                setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
-              }
-              continue;
-            }
-
-            if (obs.type === ObstacleType.GRAVITY_ORB) {
-              const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
-              const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
-              const orbCenterX = obs.x + obs.width / 2;
-              const orbCenterY = obs.y + obs.height / 2;
-              const playerCenterX = p.x + PLAYER_SIZE / 2;
-              const playerCenterY = p.y + PLAYER_SIZE / 2;
-              const distance = Math.sqrt(
-                Math.pow(orbCenterX - playerCenterX, 2) +
-                Math.pow(orbCenterY - playerCenterY, 2)
-              );
-              const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
-              // Mavi orb - basınca yer çekimini değiştir
-              if (!obs.passed && distance <= maxDistance) {
-                obs.passed = true;
-                p.gravityDirection = p.gravityDirection === 1 ? -1 : 1;
-                p.dy = 0;
-                p.isJumping = false;
-                spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.gravityOrb);
-                setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
-              }
-              continue;
-            }
-
-            if (p.y > GROUND_HEIGHT && obs.type !== ObstacleType.FLOOR_GAP) {
-              handleDeath();
-              return;
-            }
-
-            if (obs.type === ObstacleType.SPIKE || obs.type === ObstacleType.SPIKE_DOWN ||
-                obs.type === ObstacleType.SMALL_SPIKE || obs.type === ObstacleType.SMALL_SPIKE_DOWN) {
-              handleDeath();
-              return;
-            }
-
-            // Fake spikes are visual only, no collision
-            if (obs.type === ObstacleType.FAKE_SPIKE || obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
-              continue;
-            }
-
-            if (obs.type === ObstacleType.BOUNCER) {
-              if (!obs.passed) {
-                obs.passed = true;
-                p.y = obs.y - PLAYER_SIZE;
-                p.dy = -16;
-                p.isJumping = true;
-                spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, 'rgba(0,240,255,0.9)');
-                setTimeout(() => { obs.passed = false; }, 300);
-              }
-              continue;
-            }
-
-            if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
-              if (Math.abs((p.y + PLAYER_SIZE) - a.y) < 5) {
-                continue;
-              }
-              handleDeath();
-              return;
-            }
-          }
-        }
-
-        // Win/Death Bounds
-        if (p.x > levelData.length) {
-          hasWon.current = true;
-          onWin();
-        }
-        if (p.gravityDirection === 1 && p.y > GAME_HEIGHT + 50 || p.gravityDirection === -1 && p.y < -50) {
-          handleDeath();
-        }
-
-        // Score
-        const progressValue = Math.min(100, (p.x / levelData.length) * 100);
-        setScore(Math.floor(progressValue));
-        onProgressUpdate?.(Math.floor(progressValue));
-
-        // Particles
-        particles.current.forEach(pt => {
-          pt.x += pt.vx;
-          pt.y += pt.vy;
-          pt.life -= 0.05;
-        });
-        particles.current = particles.current.filter(pt => pt.life > 0);
-
-        // Trail fade + prune off-screen points (wave only)
-        if (p.inWave) {
-          const minX = cameraX.current - 60;
-          const maxX = cameraX.current + GAME_WIDTH + 60;
-          const minY = cameraY.current - 60;
-          const maxY = cameraY.current + GAME_HEIGHT + 60;
-          trail.current = trail.current
-            .map((t) => ({ ...t, life: t.life - 0.07 * deltaTime }))
-            .filter((t) =>
-              t.life > 0 &&
-              t.x >= minX && t.x <= maxX &&
-              t.y >= minY && t.y <= maxY
-            );
-        } else {
-          trail.current = [];
-        }
-      }
-      
+      // Draw
       draw(ctx);
-      
-      if (!hasWon.current && !player.current.isDead) {
-        frameId.current = requestAnimationFrame(loop);
-      } else if (particles.current.length > 0) {
-        frameId.current = requestAnimationFrame(loop);
-      }
+
+      frameId.current = requestAnimationFrame(loop);
     };
 
     frameId.current = requestAnimationFrame(loop);
     return () => {
       if (frameId.current) cancelAnimationFrame(frameId.current);
     };
-  }, [gameState, isTestMode, isInitialized, levelData, onWin, setScore, attempt]);
+  }, [gameState, isTestMode, isInitialized, levelData]);
 
   const containerClasses = (gameState === GameState.PLAYING || isTestMode)
-    ? "fixed inset-0 w-screen h-screen z-50 bg-slate-900 flex items-center justify-center cursor-none"
-    : "relative w-full max-w-[800px] aspect-video rounded-xl overflow-hidden shadow-2xl border-4 border-slate-700 bg-slate-900 select-none";
+    ? "fixed inset-0 w-screen h-screen z-50 bg-[#0f172a] flex items-center justify-center cursor-none"
+    : "relative w-full max-w-[800px] aspect-video rounded-xl overflow-hidden shadow-2xl border-4 border-slate-700 bg-[#0f172a] select-none";
 
   const canvasStyle = (gameState === GameState.PLAYING || isTestMode)
-    ? { width: '100%', height: '100%', objectFit: 'contain' as const, maxHeight: '100vh', maxWidth: '100vw' }
-    : {};
+    ? { width: '100%', height: '100%', objectFit: 'contain' as const, maxHeight: '100vh', maxWidth: '100vw', display: 'block' }
+    : { display: 'block' };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -995,6 +1007,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const updateCanvasSize = () => {
       const parent = canvas.parentElement;
       if (parent && (gameState === GameState.PLAYING || isTestMode)) {
+        // Set internal resolution to game constants
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+      } else {
         canvas.width = GAME_WIDTH;
         canvas.height = GAME_HEIGHT;
       }
@@ -1009,19 +1025,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     <div className={containerClasses}>
       <canvas
         ref={canvasRef}
-        width={GAME_WIDTH}
-        height={GAME_HEIGHT}
-        className="block cursor-pointer touch-none bg-[#0f172a]"
+        className="touch-none"
         style={canvasStyle}
       />
+      <button
+        onClick={() => setGameState(GameState.LEVEL_SELECT)}
+        onTouchStart={() => setGameState(GameState.LEVEL_SELECT)}
+        className="absolute top-4 left-4 bg-red-600/80 hover:bg-red-500 text-white px-3 py-2 rounded font-bold text-sm sm:text-base shadow-lg z-[100]"
+      >
+        EXIT
+      </button>
       {(gameState === GameState.PLAYING || isTestMode) && (
         <>
-          <button
-            onClick={() => setGameState(GameState.LEVEL_SELECT)}
-            className="absolute top-4 left-4 bg-red-600/80 hover:bg-red-500 text-white px-3 py-2 rounded font-bold text-sm sm:text-base shadow-lg"
-          >
-            ÇIKIŞ
-          </button>
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
             {isTestMode ? 'TEST MODE' : `Attempt #${attempt} — ${progress}%`}
           </div>

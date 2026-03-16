@@ -9,7 +9,9 @@ export enum GameState {
    LEADERBOARD = 'LEADERBOARD',
    CHARACTER_SELECT = 'CHARACTER_SELECT',
    HARDEST_LEVELS = 'HARDEST_LEVELS',
-   MODS = 'MODS'
+   MODS = 'MODS',
+   MY_LEVELS = 'MY_LEVELS',
+   UNVERIFIED_LEVELS = 'UNVERIFIED_LEVELS'
 }
 
 export enum ObstacleType {
@@ -110,6 +112,7 @@ export interface User {
   totalStars: number;
   completedLevels: string[]; // IDs of levels completed
   starsAwardedLevels?: string[]; // IDs of levels that already granted stars
+  starAwards?: Record<string, { stars: number; timestamp: number }>; // Track star awards with timestamps for security
   likedLevels: string[]; // IDs of levels liked
   selectedColor: string;
   selectedFace?: string; // Yüz ifadesi (opsiyonel, geriye dönük uyum için)
