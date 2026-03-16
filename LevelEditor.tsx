@@ -3,7 +3,7 @@ import { ObstacleType, LevelData, Obstacle, GameState, DraftLevel } from './type
 import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from './constants.ts';
 import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Handshake, Zap } from 'lucide-react';
 import { GameCanvas } from './GameCanvas.tsx';
-
+//test
 interface LevelEditorProps {
   initialDraft?: DraftLevel;
   onSaveDraft: (draft: DraftLevel) => void;
