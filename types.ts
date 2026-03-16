@@ -74,9 +74,33 @@ export interface LevelMetadata {
   levelNumber?: number; // incremental human-friendly ID (1,2,3...)
   difficulty: 'Unlisted' | 'Easy' | 'Normal' | 'Hard' | 'Insane' | 'Extreme';
   stars: number; // 0 if unlisted, 2, 4, 6, 8, 12 otherwise
+  verifiedBy?: string;
   data: LevelData;
   plays: number;
   likes: number;
+}
+
+export interface DraftLevel {
+  id: string;
+  name: string;
+  author: string;
+  data: LevelData;
+  createdAt: number;
+  updatedAt: number;
+  verified: boolean;
+  verifiedBy?: string;
+}
+
+export interface VerifyDeal {
+  id: string;
+  draftId: string;
+  author: string;
+  name: string;
+  data: LevelData;
+  createdAt: number;
+  status: 'open' | 'verified';
+  verifiedBy?: string;
+  verifiedAt?: number;
 }
 
 export interface User {
@@ -85,6 +109,7 @@ export interface User {
   isAdmin: boolean;
   totalStars: number;
   completedLevels: string[]; // IDs of levels completed
+  starsAwardedLevels?: string[]; // IDs of levels that already granted stars
   likedLevels: string[]; // IDs of levels liked
   selectedColor: string;
   selectedFace?: string; // Yüz ifadesi (opsiyonel, geriye dönük uyum için)

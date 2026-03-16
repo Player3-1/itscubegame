@@ -1,19 +1,22 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ObstacleType, LevelData, Obstacle, GameState } from './types.ts';
+import { ObstacleType, LevelData, Obstacle, GameState, DraftLevel } from './types.ts';
 import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from './constants.ts';
-import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw } from 'lucide-react';
+import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Handshake } from 'lucide-react';
 import { GameCanvas } from './GameCanvas.tsx';
 
 interface LevelEditorProps {
-  onSave: (data: LevelData, name: string) => void;
+  initialDraft?: DraftLevel;
+  onSaveDraft: (draft: DraftLevel) => void;
+  onRequestVerify: (draft: DraftLevel) => void;
+  onSendVerifyDeal: (draft: DraftLevel) => void;
   onExit: () => void;
 }
 
 const GRID_SIZE = 30;
 
-const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
-  const [obstacles, setObstacles] = useState<Obstacle[]>([]);
-  const [levelName, setLevelName] = useState('New Level');
+const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, onRequestVerify, onSendVerifyDeal, onExit }) => {
+  const [obstacles, setObstacles] = useState<Obstacle[]>(initialDraft?.data.obstacles || []);
+  const [levelName, setLevelName] = useState(initialDraft?.name || 'New Level');
   const [selectedTool, setSelectedTool] = useState<ObstacleType | 'ERASER' | 'ROTATE'>(ObstacleType.BLOCK);
   const [selectedCategory, setSelectedCategory] = useState<'blocks' | 'interactive' | 'spikes'>('blocks');
   const [scrollX, setScrollX] = useState(0);
@@ -519,28 +522,45 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
       setSelectedObstacleId(newObs.id);
   };
 
-  const handleSave = () => {
-      if(!levelName) return alert("Please enter a level name");
-      if(obstacles.length < 5) return alert("Level is too short!");
+  const buildDraft = (): DraftLevel | null => {
+      if(!levelName) { alert("Please enter a level name"); return null; }
+      if(obstacles.length < 5) { alert("Level is too short!"); return null; }
 
-      if (obstacles.length === 0) {
-          const levelData: LevelData = {
-              obstacles: [],
-              theme: 'neon-cyan',
-              length: 1000
-          };
-          onSave(levelData, levelName);
-          return;
-      }
-
-      const shiftedObstacles = obstacles;
-
+      const now = Date.now();
       const levelData: LevelData = {
-          obstacles: shiftedObstacles,
+          obstacles: obstacles,
           theme: 'neon-cyan',
           length: Math.max(...obstacles.map(o => o.x + o.width), 1000) + 500
       };
-      onSave(levelData, levelName);
+
+      return {
+          id: initialDraft?.id || now.toString(),
+          name: levelName,
+          author: initialDraft?.author || 'Anon',
+          data: levelData,
+          createdAt: initialDraft?.createdAt || now,
+          updatedAt: now,
+          verified: initialDraft?.verified || false,
+          verifiedBy: initialDraft?.verifiedBy
+      };
+  };
+
+  const handleSaveDraft = () => {
+      const d = buildDraft();
+      if (!d) return;
+      onSaveDraft(d);
+  };
+
+  const handleVerify = () => {
+      const d = buildDraft();
+      if (!d) return;
+      onRequestVerify(d);
+  };
+
+  const handleSendVerifyDeal = () => {
+      const d = buildDraft();
+      if (!d) return;
+      onSendVerifyDeal(d);
   };
 
   const toggleTest = () => {
@@ -577,6 +597,18 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
            </div>
            <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
               <button
+                onClick={handleVerify}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded font-bold shadow-lg transition flex items-center gap-2"
+              >
+                <CheckCircle size={18} /> VERIFY
+              </button>
+              <button
+                onClick={handleSendVerifyDeal}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded font-bold shadow-lg transition flex items-center gap-2"
+              >
+                <Handshake size={18} /> SEND VERIFY DEAL
+              </button>
+              <button
                  onClick={toggleTest}
                  className={`px-3 sm:px-4 py-2 rounded font-bold flex gap-2 items-center text-sm sm:text-base ${isTesting ? 'bg-orange-500 hover:bg-orange-400' : 'bg-cyan-600 hover:bg-cyan-500'}`}
               >
@@ -585,9 +617,11 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ onSave, onExit }) => {
               {!isTesting && (
                  <>
                      <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Exit</button>
-                     <button onClick={handleSave} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
-                         <Save size={16} className="sm:w-5 sm:h-5" /> PUBLISH
+                     <button onClick={handleSaveDraft} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
+                         <Save size={16} className="sm:w-5 sm:h-5" /> SAVE DRAFT
                      </button>
+                     <button onClick={handleVerify} className="px-3 sm:px-4 py-2 bg-yellow-600 rounded font-bold hover:bg-yellow-500 text-sm sm:text-base">VERIFY</button>
+                     <button onClick={handleSendVerifyDeal} className="px-3 sm:px-4 py-2 bg-purple-700 rounded font-bold hover:bg-purple-600 text-sm sm:text-base">SEND VERIFY DEAL</button>
                  </>
               )}
            </div>

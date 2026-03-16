@@ -35,12 +35,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [fps, setFps] = useState(0);
-  
-  // FPS tracking
-  const frameCount = useRef(0);
-  const lastFpsUpdate = useRef(performance.now());
-  const fpsUpdateInterval = useRef(500); // Update FPS display every 500ms
   
   const player = useRef({
     x: 100,
@@ -52,7 +46,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     onPlatform: false,
     gravityDirection: 1, // 1 for down, -1 for up
     currentSpeed: BASE_SPEED, // Oyuncunun mevcut hızı
-    jumpsAvailable: 2, // Double jump için - başlangıçta 2 jump
+    jumpsAvailable: 0, // Double jump disabled
     inWave: false
   });
   
@@ -84,22 +78,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const shouldRun = isTestMode || gameState === GameState.PLAYING;
 
     if (shouldRun) {
+      console.log('GameCanvas: Initializing level...');
+      if (!levelData || !levelData.obstacles) {
+        console.error('GameCanvas: Invalid levelData', levelData);
+        setGameState(GameState.LEVEL_SELECT);
+        return;
+      }
       obstacles.current = JSON.parse(JSON.stringify(levelData.obstacles));
       const startX = isTestMode ? 100 : levelData.obstacles.length > 0 ? Math.min(...levelData.obstacles.map(o => o.x)) - 200 : 100;
-      const reverseGravityEnabled = localStorage.getItem('mod_reversegravity_enabled') === 'true';
-      const startY = reverseGravityEnabled ? 0 : GROUND_HEIGHT - PLAYER_SIZE;
-      
       player.current = {
         x: startX,
-        y: startY,
+        y: GROUND_HEIGHT - PLAYER_SIZE,
         dy: 0,
         rotation: 0,
         isJumping: false,
         isDead: false,
         onPlatform: false,
-        gravityDirection: reverseGravityEnabled ? -1 : 1,
+        gravityDirection: 1,
         currentSpeed: BASE_SPEED,
-        jumpsAvailable: 2,
+        jumpsAvailable: 0,
         inJetpack: false,
         isCube: false,
         wasInJetpackPortal: false,
@@ -228,6 +225,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   const draw = (ctx: CanvasRenderingContext2D) => {
+    const p = player.current;
     // Clear canvas - fill entire canvas
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -517,21 +515,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.globalAlpha = 1.0;
     });
 
-    // Trail (behind player)
+    // Trail (behind player) — wave only
     const isCubeTrailEnabled = localStorage.getItem('mod_cubetrail_enabled') === 'true';
     const isRainbowTrailEnabled = localStorage.getItem('mod_rainbowtrail_enabled') === 'true';
-    
-    if ((player.current.inWave || isCubeTrailEnabled) && trail.current.length > 0) {
+
+    if ((p.inWave || isCubeTrailEnabled) && trail.current.length > 0) {
       ctx.save();
       for (const t of trail.current) {
         ctx.globalAlpha = Math.max(0, Math.min(1, t.life));
-        
         if (isRainbowTrailEnabled && t.hue !== undefined) {
           ctx.fillStyle = `hsl(${t.hue}, 100%, 50%)`;
         } else {
           ctx.fillStyle = playerColor;
         }
-        
         ctx.beginPath();
         ctx.arc(t.x, t.y, 5, 0, Math.PI * 2);
         ctx.fill();
@@ -541,7 +537,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Player
-    const p = player.current;
     if (!p.isDead) {
       ctx.save();
       ctx.translate(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2);
@@ -578,65 +573,58 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Faces / expressions (disabled in wave mode)
       if (!isWave) {
-      ctx.fillStyle = '#000';
-      if (playerFace === 'happy') {
-        // two eyes + big smile
-        ctx.fillRect(-7, isWave ? -2 : -7, 5, 5);
-        ctx.fillRect(2, isWave ? -2 : -7, 5, 5);
-        ctx.beginPath();
-        ctx.arc(0, isWave ? 8 : 3, 7, 0, Math.PI);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else if (playerFace === 'angry') {
-        // tilted eyebrows + straight mouth
-        ctx.fillRect(-7, isWave ? -2 : -7, 5, 5);
-        ctx.fillRect(2, isWave ? -2 : -7, 5, 5);
-        ctx.beginPath();
-        ctx.moveTo(-7, isWave ? -6 : -11);
-        ctx.lineTo(-2, isWave ? -4 : -9);
-        ctx.moveTo(7, isWave ? -6 : -11);
-        ctx.lineTo(2, isWave ? -4 : -9);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillRect(-7, isWave ? 10 : 4, 14, 2);
-      } else if (playerFace === 'surprised') {
-        // big eyes + O mouth
-        ctx.fillRect(-7, isWave ? -2 : -7, 4, 6);
-        ctx.fillRect(3, isWave ? -2 : -7, 4, 6);
-        ctx.beginPath();
-        ctx.arc(0, isWave ? 10 : 4, 4, 0, Math.PI * 2);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else if (playerFace === 'cool') {
-        // shades + smile
-        ctx.fillRect(-9, isWave ? 0 : -5, 7, 4);
-        ctx.fillRect(2, isWave ? 0 : -5, 7, 4);
-        ctx.fillRect(-2, isWave ? 1 : -4, 4, 1);
-        ctx.beginPath();
-        ctx.arc(0, isWave ? 10 : 5, 6, 0, Math.PI);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else if (playerFace === 'admin') {
-        // small smile
-        ctx.fillRect(-7, isWave ? -2 : -7, 5, 5);
-        ctx.fillRect(2, isWave ? -2 : -7, 5, 5);
-        ctx.beginPath();
-        ctx.arc(0, isWave ? 8 : 3, 3, 0, Math.PI);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else {
-        // default simple two-eye face
-        ctx.fillRect(-7, isWave ? -2 : -7, 5, 5);
-        ctx.fillRect(2, isWave ? -2 : -7, 5, 5);
-        ctx.fillRect(-5, isWave ? 10 : 4, 10, 2);
+        ctx.fillStyle = '#000';
+        if (playerFace === 'happy') {
+          ctx.fillRect(-7, -7, 5, 5);
+          ctx.fillRect(2, -7, 5, 5);
+          ctx.beginPath();
+          ctx.arc(0, 3, 7, 0, Math.PI);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (playerFace === 'angry') {
+          ctx.fillRect(-7, -7, 5, 5);
+          ctx.fillRect(2, -7, 5, 5);
+          ctx.beginPath();
+          ctx.moveTo(-7, -11);
+          ctx.lineTo(-2, -9);
+          ctx.moveTo(7, -11);
+          ctx.lineTo(2, -9);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillRect(-7, 4, 14, 2);
+        } else if (playerFace === 'surprised') {
+          ctx.fillRect(-7, -7, 4, 6);
+          ctx.fillRect(3, -7, 4, 6);
+          ctx.beginPath();
+          ctx.arc(0, 4, 4, 0, Math.PI * 2);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (playerFace === 'cool') {
+          ctx.fillRect(-9, -5, 7, 4);
+          ctx.fillRect(2, -5, 7, 4);
+          ctx.fillRect(-2, -4, 4, 1);
+          ctx.beginPath();
+          ctx.arc(0, 5, 6, 0, Math.PI);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (playerFace === 'admin') {
+          ctx.fillRect(-7, -7, 5, 5);
+          ctx.fillRect(2, -7, 5, 5);
+          ctx.beginPath();
+          ctx.arc(0, 3, 3, 0, Math.PI);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          ctx.fillRect(-7, -7, 5, 5);
+          ctx.fillRect(2, -7, 5, 5);
+          ctx.fillRect(-5, 4, 10, 2);
+        }
       }
-      }
-
       ctx.restore();
     }
 
@@ -660,34 +648,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const deltaTime = Math.min((time - lastTime) / 16.67, 2.0);
       lastTime = time;
 
-      // FPS calculation
-      frameCount.current++;
-      const currentTime = performance.now();
-      if (currentTime - lastFpsUpdate.current >= fpsUpdateInterval.current) {
-        const fpsValue = Math.round((frameCount.current * 1000) / (currentTime - lastFpsUpdate.current));
-        setFps(fpsValue);
-        frameCount.current = 0;
-        lastFpsUpdate.current = currentTime;
-      }
-
       if (!player.current.isDead && !hasWon.current) {
         // Inline updatePhysics here
         const p = player.current;
 
-        // Trail update
-        const isCubeTrailEnabled = localStorage.getItem('mod_cubetrail_enabled') === 'true';
-        const isRainbowTrailEnabled = localStorage.getItem('mod_rainbowtrail_enabled') === 'true';
-        
-        if (p.inWave || isCubeTrailEnabled) {
-          const hue = isRainbowTrailEnabled ? (Date.now() / 20) % 360 : 0;
-          trail.current.push({ 
-            x: p.x + PLAYER_SIZE / 2, 
-            y: p.y + PLAYER_SIZE / 2, 
-            life: 0.9,
-            hue: hue
-          });
+        // Trail update (wave only)
+        if (p.inWave) {
+          trail.current.push({ x: p.x + PLAYER_SIZE / 2, y: p.y + PLAYER_SIZE / 2, life: 0.9 });
           if (trail.current.length > 26) trail.current.shift();
-        } else if (!isRainbowTrailEnabled) {
+        } else {
           trail.current = [];
         }
 
@@ -753,7 +722,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           p.dy = 0;
           p.onPlatform = true;
           p.isJumping = false;
-          p.jumpsAvailable = 2; // Platform üzerindeyken 2 jump hakkı ver
+          p.jumpsAvailable = 0; // Double jump disabled
 
           if (p.inWave) {
             // Wave on ground: look forward
@@ -784,33 +753,34 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // Die on touching top boundary (only when not in wave mode)
-        if (!p.inWave && p.y <= 0) {
+        // Die on touching top boundary
+        if (p.y <= 0) {
           handleDeath();
           return;
         }
 
         // Wave mode: auto ceiling 12 blocks above ground
         if (p.inWave) {
-          const ceilingY = GROUND_HEIGHT - (30 * 12);
+          const ceilingY = GROUND_HEIGHT - 30 * 12;
           if (p.y <= ceilingY) {
+            p.y = ceilingY;
+            p.dy = 0;
             handleDeath();
             return;
           }
         }
 
-        // Jump Handling - Double Jump desteği
-        if (!p.inWave && (p.onPlatform || p.jumpsAvailable > 0) && (isHoldingJump.current || jumpQueued.current)) {
+        // Jump Handling
+        if (!p.inWave && (p.onPlatform) && (isHoldingJump.current || jumpQueued.current)) {
           p.dy = JUMP_FORCE * p.gravityDirection;
           p.isJumping = true;
           p.onPlatform = false;
           p.y -= 2 * p.gravityDirection;
-          p.jumpsAvailable--; // Jump hakkı kullan
           jumpQueued.current = false;
         }
 
         // Collision Detection
-        const hitBoxBuffer = 7;
+        const hitBoxBuffer = 6;
 
         for (const obs of obstacles.current) {
           if (obs.x > p.x + 100 || obs.x + obs.width < p.x - 100) continue;
@@ -870,61 +840,49 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             }
 
             if (obs.type === ObstacleType.ORB) {
-              // ORB - yukarı zıplatma
               const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
-              const orbHitboxBuffer = orbHitboxEnabled ? 15 : 7; // Increased hitbox when mod is enabled
-              
-              // Check if player is within orb hitbox
+              const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
               const orbCenterX = obs.x + obs.width / 2;
               const orbCenterY = obs.y + obs.height / 2;
               const playerCenterX = p.x + PLAYER_SIZE / 2;
               const playerCenterY = p.y + PLAYER_SIZE / 2;
-              
               const distance = Math.sqrt(
-                Math.pow(orbCenterX - playerCenterX, 2) + 
+                Math.pow(orbCenterX - playerCenterX, 2) +
                 Math.pow(orbCenterY - playerCenterY, 2)
               );
-              
-              const maxDistance = (obs.width / 2) + (PLAYER_SIZE / 2) + orbHitboxBuffer;
-              
+              const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
+              // ORB - yukarı zıplatma
               if (!obs.passed && orbPressed.current && distance <= maxDistance) {
                 obs.passed = true;
                 p.y = obs.y - PLAYER_SIZE;
-                p.dy = -12 * p.gravityDirection; // Respect gravity direction
+                p.dy = -12 * p.gravityDirection; 
                 p.isJumping = true;
                 spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.orb);
-                orbPressed.current = false;
-                setTimeout(() => { obs.passed = false; }, 300);
+                setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
               }
               continue;
             }
 
             if (obs.type === ObstacleType.GRAVITY_ORB) {
-              // Mavi orb - basınca yer çekimini değiştir
               const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
-              const orbHitboxBuffer = orbHitboxEnabled ? 15 : 7; // Increased hitbox when mod is enabled
-              
-              // Check if player is within orb hitbox
+              const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
               const orbCenterX = obs.x + obs.width / 2;
               const orbCenterY = obs.y + obs.height / 2;
               const playerCenterX = p.x + PLAYER_SIZE / 2;
               const playerCenterY = p.y + PLAYER_SIZE / 2;
-              
               const distance = Math.sqrt(
-                Math.pow(orbCenterX - playerCenterX, 2) + 
+                Math.pow(orbCenterX - playerCenterX, 2) +
                 Math.pow(orbCenterY - playerCenterY, 2)
               );
-              
-              const maxDistance = (obs.width / 2) + (PLAYER_SIZE / 2) + orbHitboxBuffer;
-              
-              if (!obs.passed && orbPressed.current && distance <= maxDistance) {
+              const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
+              // Mavi orb - basınca yer çekimini değiştir
+              if (!obs.passed && distance <= maxDistance) {
                 obs.passed = true;
                 p.gravityDirection = p.gravityDirection === 1 ? -1 : 1;
                 p.dy = 0;
                 p.isJumping = false;
                 spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.gravityOrb);
-                orbPressed.current = false;
-                setTimeout(() => { obs.passed = false; }, 300);
+                setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
               }
               continue;
             }
@@ -989,8 +947,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         });
         particles.current = particles.current.filter(pt => pt.life > 0);
 
-        // Trail fade + prune off-screen points
-        if (p.inWave || isCubeTrailEnabled) {
+        // Trail fade + prune off-screen points (wave only)
+        if (p.inWave) {
           const minX = cameraX.current - 60;
           const maxX = cameraX.current + GAME_WIDTH + 60;
           const minY = cameraY.current - 60;
@@ -1030,13 +988,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     ? { width: '100%', height: '100%', objectFit: 'contain' as const, maxHeight: '100vh', maxWidth: '100vw' }
     : {};
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const updateCanvasSize = () => {
+      const parent = canvas.parentElement;
+      if (parent && (gameState === GameState.PLAYING || isTestMode)) {
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+      }
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    return () => window.removeEventListener('resize', updateCanvasSize);
+  }, [gameState, isTestMode]);
+
   return (
     <div className={containerClasses}>
       <canvas
         ref={canvasRef}
         width={GAME_WIDTH}
         height={GAME_HEIGHT}
-        className="block cursor-pointer touch-none"
+        className="block cursor-pointer touch-none bg-[#0f172a]"
         style={canvasStyle}
       />
       {(gameState === GameState.PLAYING || isTestMode) && (
@@ -1050,19 +1025,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
             {isTestMode ? 'TEST MODE' : `Attempt #${attempt} — ${progress}%`}
           </div>
-          {localStorage.getItem('mod_progressbar_enabled') === 'true' && (
-            <div className="absolute top-16 left-1/2 transform -translate-x-1/2 w-64 bg-black/40 rounded-full h-3 overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          )}
-          {localStorage.getItem('mod_fps_enabled') === 'true' && (
-            <div className="absolute bottom-4 left-4 text-green-400 text-sm font-mono pointer-events-none bg-black/40 px-2 py-1 rounded">
-              FPS: {fps}
-            </div>
-          )}
         </>
       )}
       <div className="absolute inset-0 z-10 touch-manipulation pointer-events-none" />

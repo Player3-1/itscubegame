@@ -2,11 +2,11 @@ export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 450;
 
 // Physics Tweaks
-export const GRAVITY = 1.1; // Yerçekimi artırıldı (daha hızlı düşüş)
-export const JUMP_FORCE = -12.2; // Zıplama gücü azaltıldı (daha kısa zıplama)
+export const GRAVITY = 1.1; // İlk koddaki değer
+export const JUMP_FORCE = -12.2; // İlk koddaki değer
 export const GROUND_HEIGHT = 350; 
 export const PLAYER_SIZE = 30;
-export const BASE_SPEED = 5.8; // Hız düşürüldü (Daha kolay kontrol)
+export const BASE_SPEED = 5.8; // İlk koddaki değer
 export const SPEED_INCREMENT = 0.001; 
 
 export const ADMIN_PASSWORD = "99458137";

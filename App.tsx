@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { GameCanvas } from './GameCanvas';
 import LevelEditor from './LevelEditor';
-import { GameState, LevelData, User, LevelMetadata, ObstacleType } from './types.ts';
+import { GameState, LevelData, User, LevelMetadata, ObstacleType, DraftLevel, VerifyDeal } from './types.ts';
 import { ADMIN_PASSWORD, COLORS } from './constants.ts';
 import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2, Package } from 'lucide-react';
 import { db } from './firebase.ts';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 // expressions/emotes removed per user request
+
+// test yazısı
 
 // Start with empty levels
 const DEFAULT_LEVELS: LevelMetadata[] = [];
@@ -49,6 +51,10 @@ const App: React.FC = () => {
   // Data
   const [user, setUser] = useState<User | null>(null);
   const [levels, setLevels] = useState<LevelMetadata[]>([]);
+  const [drafts, setDrafts] = useState<DraftLevel[]>([]);
+  const [currentDraft, setCurrentDraft] = useState<DraftLevel | null>(null);
+  const [verifyDraft, setVerifyDraft] = useState<DraftLevel | null>(null);
+  const [verifyDeal, setVerifyDeal] = useState<VerifyDeal | null>(null);
     // show id next to name
 
     // Play attempt tracking
@@ -71,6 +77,64 @@ const App: React.FC = () => {
   const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
   const [newBestAchieved, setNewBestAchieved] = useState(false);
 
+  const getDraftsKey = (name?: string) => `nd_drafts_${name || 'anon'}`;
+
+  const loadDraftsForUser = (name?: string) => {
+    if (!name) {
+      setDrafts([]);
+      return;
+    }
+    const raw = localStorage.getItem(getDraftsKey(name));
+    setDrafts(raw ? (JSON.parse(raw) as DraftLevel[]) : []);
+  };
+
+  const saveDraftsForUser = (name: string, next: DraftLevel[]) => {
+    localStorage.setItem(getDraftsKey(name), JSON.stringify(next));
+    setDrafts(next);
+  };
+
+  const getVerifyDeals = (): VerifyDeal[] => {
+    const raw = localStorage.getItem('nd_verify_deals');
+    return raw ? (JSON.parse(raw) as VerifyDeal[]) : [];
+  };
+
+  const saveVerifyDeals = (deals: VerifyDeal[]) => {
+    localStorage.setItem('nd_verify_deals', JSON.stringify(deals));
+  };
+
+  const publishVerifiedDraft = (draft: DraftLevel, verifiedBy: string) => {
+    const dbLevels = localStorage.getItem('nd_levels');
+    const existingLevels: LevelMetadata[] = dbLevels ? JSON.parse(dbLevels) : levels;
+    const maxNum = existingLevels.reduce((m, l) => Math.max(m, l.levelNumber || 0), 0);
+    const newLevelNumber = maxNum + 1;
+
+    const newLevel: LevelMetadata = {
+      id: draft.id,
+      levelNumber: newLevelNumber,
+      name: draft.name,
+      author: draft.author,
+      difficulty: 'Unlisted',
+      stars: 0,
+      verifiedBy,
+      data: draft.data,
+      plays: 0,
+      likes: 0
+    };
+
+    const updatedLevels = [...existingLevels.filter(l => l.id !== newLevel.id), newLevel];
+    setLevels(updatedLevels);
+    localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
+
+    (async () => {
+      try {
+        const ref = doc(db, 'levels', newLevel.id);
+        await setDoc(ref, newLevel);
+      } catch (err) {
+        console.error('Firestore save verified level error:', err);
+      }
+    })();
+  };
+
   // Login Form State
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginName, setLoginName] = useState("");
@@ -86,7 +150,11 @@ const App: React.FC = () => {
       if (!snap.empty) {
         const remoteLevels: LevelMetadata[] = snap.docs.map((d) => d.data() as LevelMetadata);
         // Ensure levelNumber exists for older entries
-        const normalized = remoteLevels.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
+        const normalized = remoteLevels.map((l, idx) => ({
+          ...l,
+          levelNumber: l.levelNumber || idx + 1,
+          stars: typeof l.stars === 'number' ? l.stars : getDifficultyStars(l.difficulty)
+        }));
         setLevels(normalized);
         localStorage.setItem('nd_levels', JSON.stringify(normalized));
         return;
@@ -98,7 +166,11 @@ const App: React.FC = () => {
     const storedLevels = localStorage.getItem('nd_levels');
     if (storedLevels) {
       const parsed = JSON.parse(storedLevels) as LevelMetadata[];
-      const normalized = parsed.map((l, idx) => ({ ...l, levelNumber: l.levelNumber || idx + 1 }));
+      const normalized = parsed.map((l, idx) => ({
+        ...l,
+        levelNumber: l.levelNumber || idx + 1,
+        stars: typeof l.stars === 'number' ? l.stars : getDifficultyStars(l.difficulty)
+      }));
       setLevels(normalized);
     } else {
       setLevels(DEFAULT_LEVELS);
@@ -215,6 +287,7 @@ const App: React.FC = () => {
                       isAdmin: true,
                       totalStars: 0,
                       completedLevels: [],
+                      starsAwardedLevels: [],
                       likedLevels: [],
                       selectedColor: COLORS.player
                   };
@@ -236,6 +309,7 @@ const App: React.FC = () => {
                       isAdmin: true,
                       totalStars: 0,
                       completedLevels: [],
+                      starsAwardedLevels: [],
                       likedLevels: [],
                       selectedColor: COLORS.player
                   };
@@ -257,8 +331,10 @@ const App: React.FC = () => {
         const freshUser = db.find(u => u.name === parsedSession.name);
         if (freshUser) {
             setUser(freshUser);
+            loadDraftsForUser(freshUser.name);
         } else {
             setUser(parsedSession);
+            loadDraftsForUser(parsedSession.name);
         }
     }
   }, []);
@@ -305,6 +381,7 @@ const App: React.FC = () => {
             isAdmin: false,
             totalStars: 0,
             completedLevels: [],
+            starsAwardedLevels: [],
             likedLevels: [],
                 selectedColor: COLORS.player
          };
@@ -361,41 +438,99 @@ const App: React.FC = () => {
 
   // skins/colors removed: all players use the single admin color
 
-  const saveLevel = (data: LevelData, name: string) => {
-         // determine next levelNumber
-         const dbLevels = localStorage.getItem('nd_levels');
-         const existingLevels: LevelMetadata[] = dbLevels ? JSON.parse(dbLevels) : levels;
-         const maxNum = existingLevels.reduce((m, l) => Math.max(m, l.levelNumber || 0), 0);
-         const newLevelNumber = maxNum + 1;
+  const saveDraft = (draft: DraftLevel) => {
+    if (!user?.name) return;
 
-         const newLevel: LevelMetadata = {
-             id: Date.now().toString(),
-             levelNumber: newLevelNumber,
-             name: name,
-             author: user?.name || 'Anon',
-             difficulty: 'Unlisted',
-             stars: 0,
-             data: data,
-             plays: 0,
-             likes: 0
-         };
-     
-     const currentStoredLevels = localStorage.getItem('nd_levels');
-     const currentLevels = currentStoredLevels ? JSON.parse(currentStoredLevels) : levels;
-     
-     const updatedLevels = [...currentLevels, newLevel];
-     setLevels(updatedLevels);
-     localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
-     // Persist to Firestore
-     (async () => {
-       try {
-         const ref = doc(db, 'levels', newLevel.id);
-         await setDoc(ref, newLevel);
-       } catch (err) {
-         console.error('Firestore save level error:', err);
-       }
-     })();
-     setGameState(GameState.LEVEL_SELECT);
+    const current = drafts;
+    const exists = current.find(d => d.id === draft.id);
+
+    if (!exists && current.length >= 10) {
+      alert('You can only have up to 10 levels.');
+      return;
+    }
+
+    const next = exists
+      ? current.map(d => (d.id === draft.id ? { ...draft, author: user.name } : d))
+      : [...current, { ...draft, author: user.name }];
+
+    saveDraftsForUser(user.name, next);
+    setCurrentDraft(draft);
+  };
+
+  const openDraftInEditor = (draft: DraftLevel) => {
+    setCurrentDraft(draft);
+    setVerifyDraft(null);
+    setVerifyDeal(null);
+    setGameState(GameState.EDITOR);
+  };
+
+  const deleteDraft = (draftId: string) => {
+    if (!user?.name) return;
+    const next = drafts.filter((d) => d.id !== draftId);
+    saveDraftsForUser(user.name, next);
+    if (currentDraft?.id === draftId) setCurrentDraft(null);
+  };
+
+  const requestVerify = (draft: DraftLevel) => {
+    if (!user?.name) return;
+    saveDraft(draft);
+    setVerifyDraft(draft);
+    setVerifyDeal(null);
+    setCurrentLevel({
+      id: draft.id,
+      name: draft.name,
+      author: draft.author,
+      difficulty: 'Unlisted',
+      stars: 0,
+      data: draft.data,
+      plays: 0,
+      likes: 0,
+      verifiedBy: draft.verifiedBy
+    });
+    setScore(0);
+    setCurrentAttempt(1);
+    setGameState(GameState.PLAYING);
+  };
+
+  const sendVerifyDeal = (draft: DraftLevel) => {
+    if (!user?.name) return;
+    saveDraft(draft);
+    const deals = getVerifyDeals();
+    const existing = deals.find(d => d.draftId === draft.id && d.status === 'open');
+    if (existing) {
+      alert('This draft is already in verify deals.');
+      return;
+    }
+    const now = Date.now();
+    const deal: VerifyDeal = {
+      id: now.toString(),
+      draftId: draft.id,
+      author: draft.author,
+      name: draft.name,
+      data: draft.data,
+      createdAt: now,
+      status: 'open'
+    };
+    saveVerifyDeals([deal, ...deals].slice(0, 50));
+    alert('Verify deal sent. Other players can verify it.');
+  };
+
+  const startVerifyDealPlay = (deal: VerifyDeal) => {
+    setVerifyDeal(deal);
+    setVerifyDraft(null);
+    setCurrentLevel({
+      id: deal.draftId,
+      name: deal.name,
+      author: deal.author,
+      difficulty: 'Unlisted',
+      stars: 0,
+      data: deal.data,
+      plays: 0,
+      likes: 0
+    });
+    setScore(0);
+    setCurrentAttempt(1);
+    setGameState(GameState.PLAYING);
   };
 
   const updateHardestLevels = (newIds: string[]) => {
@@ -493,13 +628,28 @@ const App: React.FC = () => {
       let updatedUser = { ...freshUser };
       let changed = false;
 
+      const starsToAward = typeof currentLevel.stars === 'number' ? currentLevel.stars : getDifficultyStars(currentLevel.difficulty);
+
       const alreadyCompleted = freshUser.completedLevels.includes(currentLevel.id);
+      const starsAwarded = (freshUser.starsAwardedLevels || []).includes(currentLevel.id);
 
       if (!alreadyCompleted) {
           updatedUser.completedLevels = [...freshUser.completedLevels, currentLevel.id];
-          if (currentLevel.stars > 0) {
-              updatedUser.totalStars = (freshUser.totalStars || 0) + currentLevel.stars;
-          }
+          changed = true;
+      }
+
+      // Always award stars once per level when completed, even if best was already 100%
+      if (!starsAwarded && starsToAward > 0) {
+          updatedUser.totalStars = (updatedUser.totalStars || 0) + starsToAward;
+          updatedUser.starsAwardedLevels = [...(freshUser.starsAwardedLevels || []), currentLevel.id];
+          changed = true;
+      }
+      
+      // Force award stars if they were somehow missed but level is 100%
+      const best = freshUser.highestProgress?.[currentLevel.id] || 0;
+      if (best >= 100 && !starsAwarded && starsToAward > 0 && !changed) {
+          updatedUser.totalStars = (updatedUser.totalStars || 0) + starsToAward;
+          updatedUser.starsAwardedLevels = [...(freshUser.starsAwardedLevels || []), currentLevel.id];
           changed = true;
       }
       
@@ -510,6 +660,23 @@ const App: React.FC = () => {
   };
 
   const handlePlayLevel = (level: LevelMetadata) => {
+      // Retroactive stars: if user already has best 100% on this level but never received stars
+      if (user) {
+        const db = getUsersDB();
+        const freshUser = db.find(u => u.name === user.name) || user;
+        const best = freshUser.highestProgress?.[level.id] || 0;
+        const starsAwarded = (freshUser.starsAwardedLevels || []).includes(level.id);
+        const starsToAward = typeof level.stars === 'number' ? level.stars : getDifficultyStars(level.difficulty);
+        if (best >= 100 && !starsAwarded && starsToAward > 0) {
+          const updatedUser: User = {
+            ...freshUser,
+            totalStars: (freshUser.totalStars || 0) + starsToAward,
+            starsAwardedLevels: [...(freshUser.starsAwardedLevels || []), level.id]
+          };
+          saveUserFull(updatedUser);
+        }
+      }
+
       const updatedLevels = levels.map(l => {
           if (l.id === level.id) {
               return { ...l, plays: (l.plays || 0) + 1 };
@@ -659,142 +826,6 @@ const App: React.FC = () => {
 
   // --- RENDERERS ---
 
-  if (gameState === GameState.LOGIN) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-rajdhani p-4">
-            <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700 relative overflow-hidden">
-               {/* Decorative background element */}
-               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 via-pink-500 to-yellow-500"></div>
-
-               <h1 className="text-3xl sm:text-4xl font-black text-center text-cyan-400 mb-2 font-orbitron tracking-wider">CUBE DASH</h1>
-               <p className="text-center text-slate-400 mb-6 sm:mb-8 font-bold text-sm sm:text-base">
-                   {showAdminCodeInput ? "ADMIN VERIFICATION" : (isRegistering ? "CREATE ACCOUNT" : "LOG IN")}
-               </p>
-               
-               {showAdminCodeInput ? (
-                   // ADMIN CODE SCREEN
-                   <div className="space-y-4 animate-in zoom-in-95">
-                       <div className="bg-pink-900/20 p-4 rounded border border-pink-500/50 text-center mb-4">
-                           <ShieldAlert className="mx-auto text-pink-500 mb-2" size={32} />
-                           <p className="text-pink-200 text-sm">An admin key is required to access this account.</p>
-                       </div>
-                       <div>
-                          <label className="block text-xs uppercase font-bold text-pink-500 mb-1">Admin Password</label>
-                          <input 
-                              type="password"
-                              className="w-full bg-slate-900 border border-pink-500 rounded p-3 text-white focus:outline-none focus:shadow-[0_0_10px_rgba(236,72,153,0.5)] transition"
-                              value={adminCode}
-                              onChange={(e) => setAdminCode(e.target.value)}
-                              placeholder="Enter code..."
-                          />
-                       </div>
-                       {loginError && <p className="text-red-500 text-sm font-bold text-center bg-red-900/20 p-2 rounded">{loginError}</p>}
-                       <button onClick={handleAdminCodeSubmit} className="w-full bg-pink-600 hover:bg-pink-500 py-3 rounded font-bold text-lg font-orbitron transition shadow-lg">
-                          VERIFY
-                       </button>
-                       <button onClick={() => { setShowAdminCodeInput(false); setAdminCode(""); }} className="w-full text-slate-500 hover:text-white text-sm py-2">
-                          Go Back
-                       </button>
-                   </div>
-               ) : (
-                   // NORMAL LOGIN / REGISTER SCREEN
-                   <div className="space-y-4">
-                      <div>
-                          <label className="block text-xs uppercase font-bold text-slate-500 mb-1">Username</label>
-                          <input
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-cyan-500 outline-none transition"
-                            value={loginName}
-                            onChange={(e) => setLoginName(e.target.value)}
-                            placeholder="Username..."
-                          />
-                      </div>
-
-                      <div>
-                          <label className="block text-xs uppercase font-bold text-slate-500 mb-1">Password</label>
-                          <input
-                            type="password"
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-cyan-500 outline-none transition"
-                            value={loginPass}
-                            onChange={(e) => setLoginPass(e.target.value)}
-                            placeholder="••••••••"
-                          />
-                      </div>
-
-                      {loginError && <p className="text-red-500 text-sm font-bold text-center bg-red-900/20 p-2 rounded">{loginError}</p>}
-
-                      <button 
-                        onClick={handleAuthAction} 
-                        className={`w-full py-3 rounded font-bold text-lg font-orbitron transition flex items-center justify-center gap-2 ${isRegistering ? 'bg-green-600 hover:bg-green-500' : 'bg-cyan-600 hover:bg-cyan-500'}`}
-                      >
-                          {isRegistering ? <><UserPlus size={20}/> SIGN UP</> : <><LogIn size={20}/> LOG IN</>}
-                      </button>
-                      
-                      <div className="pt-4 border-t border-slate-700 flex justify-center">
-                         <button 
-                            onClick={() => { setIsRegistering(!isRegistering); setLoginError(""); }}
-                            className="text-sm text-slate-400 hover:text-white transition"
-                         >
-                            {isRegistering ? "Already have an account? Log In" : "Don't have an account? Sign Up"}
-                         </button>
-                      </div>
-                   </div>
-               )}
-
-                {showAssignDifficulty && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/60" onClick={() => setShowAssignDifficulty(false)} />
-                        <div className="bg-slate-800 p-4 sm:p-6 rounded-lg z-10 w-full max-w-md border border-slate-700">
-                            <h3 className="text-xl sm:text-2xl font-bold mb-4">Assign Difficulty (by ID)</h3>
-                            <div className="mb-4">
-                                <label className="text-sm text-slate-400">Level ID (number)</label>
-                                <input value={assignLevelId} onChange={(e) => setAssignLevelId(e.target.value)} placeholder="E.g: 12" className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" />
-                                <div className="text-xs text-slate-400 mt-1">Enter the ID and select the difficulty to assign.</div>
-                            </div>
-                            <div className="mb-4">
-                                <label className="text-sm text-slate-400">Difficulty</label>
-                                <select className="w-full bg-black text-white px-3 py-2 rounded border border-slate-700 mt-1" value={assignDifficulty} onChange={(e) => setAssignDifficulty(e.target.value as any)}>
-                                    <option value="Unlisted">Unlisted</option>
-                                    <option value="Easy">Easy</option>
-                                    <option value="Normal">Normal</option>
-                                    <option value="Hard">Hard</option>
-                                    <option value="Insane">Insane</option>
-                                    <option value="Extreme">Extreme</option>
-                                </select>
-                            </div>
-                            {assignDifficulty !== 'Unlisted' && (
-                                <div className="mb-4">
-                                    <label className="text-sm text-slate-400">Star Rating</label>
-                                    <div className="flex gap-1 mt-1">
-                                        {[1, 2, 3, ...(assignDifficulty === 'Extreme' ? [4] : [])].map(star => (
-                                            <button
-                                                key={star}
-                                                onClick={() => setAssignStarRating(star)}
-                                                className={`w-8 h-8 ${assignStarRating >= star ? 'text-yellow-400' : 'text-slate-600'} hover:text-yellow-300`}
-                                            >
-                                                ★
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            <div className="flex gap-2 justify-end">
-                                <button onClick={() => setShowAssignDifficulty(false)} className="px-3 sm:px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm sm:text-base">Cancel</button>
-                                <button onClick={() => {
-                                    const n = Number(assignLevelId);
-                                    if (!n || isNaN(n)) { alert('Enter a valid ID'); return; }
-                                    const found = levels.find(l => l.levelNumber === n);
-                                    if (!found) { alert('No level matches the ID'); return; }
-                                    updateDifficulty(found.id, assignDifficulty);
-                                    setShowAssignDifficulty(false);
-                                }} className="px-3 sm:px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-white text-sm sm:text-base">Apply</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-      );
-  }
 
   if (gameState === GameState.MENU) {
       return (
@@ -1042,45 +1073,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Master Mods Toggle */}
-                <div className="w-full">
-                  <h3 className="text-sm uppercase tracking-wide text-slate-400 mb-2">
-                    Game Mods
-                  </h3>
-                  <div className="bg-slate-700 border border-slate-600 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-green-400">Enable All Mods</h4>
-                        <p className="text-xs text-slate-400">Toggle all game modifications on/off</p>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          const currentState = localStorage.getItem('mods_master_enabled') === 'true';
-                          const newState = !currentState;
-                          localStorage.setItem('mods_master_enabled', newState.toString());
-                          
-                          // Update all individual mod settings to match master setting
-                          const mods = ['mod_fps_enabled', 'mod_progressbar_enabled', 'mod_colordifficulty_enabled', 
-                                       'mod_cubetrail_enabled', 'mod_rainbowtrail_enabled', 'mod_orbhitbox_enabled', 
-                                       'mod_reversegravity_enabled'];
-                          mods.forEach(mod => localStorage.setItem(mod, newState.toString()));
-                          
-                          // Force re-render
-                          setGameState(GameState.MENU);
-                          setTimeout(() => setGameState(GameState.CHARACTER_SELECT), 10);
-                        }}
-                        className={`px-3 py-1 rounded font-bold text-xs transition ${
-                          localStorage.getItem('mods_master_enabled') === 'true' 
-                            ? 'bg-green-600 hover:bg-green-500' 
-                            : 'bg-slate-600 hover:bg-slate-500'
-                        }`}
-                      >
-                        {localStorage.getItem('mods_master_enabled') === 'true' ? 'ON' : 'OFF'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
                 <button
                   onClick={() => setGameState(GameState.MENU)}
                   className="mt-4 px-4 sm:px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-full font-bold font-orbitron text-sm sm:text-base"
@@ -1212,7 +1204,12 @@ const App: React.FC = () => {
 
                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-6 justify-center">
                     <button
-                        onClick={() => setGameState(GameState.EDITOR)}
+                        onClick={() => {
+                          setCurrentDraft(null);
+                          setVerifyDraft(null);
+                          setVerifyDeal(null);
+                          setGameState(GameState.EDITOR);
+                        }}
                         className="flex items-center gap-2 bg-pink-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-bold hover:bg-pink-500 hover:scale-105 transition shadow-lg text-sm sm:text-base"
                     >
                         <PenTool size={16} className="sm:w-5 sm:h-5"/> CREATE LEVEL
@@ -1307,6 +1304,9 @@ const App: React.FC = () => {
                                         )}
                                      </div>
                                      <p className="text-sm text-slate-400">by {level.author}</p>
+                                     {level.verifiedBy && (
+                                       <p className="text-xs text-emerald-400 font-bold">verified by: {level.verifiedBy}</p>
+                                     )}
                                      <div className="flex items-center gap-2 sm:gap-4 mt-2 text-xs text-slate-500">
                                          <span className="flex items-center gap-1"><Eye size={12}/> {level.plays || 0}</span>
                                          <button
@@ -1469,7 +1469,10 @@ const App: React.FC = () => {
   if (gameState === GameState.EDITOR) {
       return (
           <LevelEditor
-              onSave={saveLevel}
+              initialDraft={currentDraft || undefined}
+              onSaveDraft={saveDraft}
+              onRequestVerify={requestVerify}
+              onSendVerifyDeal={sendVerifyDeal}
               onExit={() => setGameState(GameState.LEVEL_SELECT)}
           />
       );
@@ -1488,10 +1491,59 @@ const App: React.FC = () => {
                      setScore(0);
                      setCurrentAttempt(prev => prev + 1);
                  } else {
-                     setGameState(GameState.GAME_OVER);
+                     // If verifying, return to editor instead of game over
+                     if (verifyDraft || verifyDeal) {
+                       alert('Verification failed: you died.');
+                       setGameState(GameState.EDITOR);
+                     } else {
+                       setGameState(GameState.GAME_OVER);
+                     }
                  }
              }}
-             onWin={handleLevelComplete}
+             onWin={() => {
+               if (verifyDraft && user?.name) {
+                 publishVerifiedDraft(verifyDraft, user.name);
+                 // Mark draft as verified and keep it editable
+                 if (user.name) {
+                   const next = drafts.map(d =>
+                     d.id === verifyDraft.id
+                       ? { ...d, verified: true, verifiedBy: user.name, updatedAt: Date.now() }
+                       : d
+                   );
+                   saveDraftsForUser(user.name, next);
+                 }
+                 setVerifyDraft(null);
+                 alert('Verified! Your level is now published.');
+                 setGameState(GameState.LEVEL_SELECT);
+                 return;
+               }
+               if (verifyDeal && user?.name) {
+                 // Mark deal verified and publish
+                 const deals = getVerifyDeals();
+                 const updatedDeals = deals.map(d =>
+                   d.id === verifyDeal.id
+                     ? { ...d, status: 'verified' as const, verifiedBy: user.name, verifiedAt: Date.now() }
+                     : d
+                 );
+                 saveVerifyDeals(updatedDeals);
+                 publishVerifiedDraft({
+                   id: verifyDeal.draftId,
+                   name: verifyDeal.name,
+                   author: verifyDeal.author,
+                   data: verifyDeal.data,
+                   createdAt: verifyDeal.createdAt,
+                   updatedAt: Date.now(),
+                   verified: true,
+                   verifiedBy: user.name
+                 }, user.name);
+                 setVerifyDeal(null);
+                 alert('Verified deal! Level published.');
+                 setGameState(GameState.LEVEL_SELECT);
+                 return;
+               }
+
+               handleLevelComplete();
+             }}
              playerColor={user?.selectedColor || COLORS.player}
              playerFace={user?.selectedFace || 'default'}
              attempt={currentAttempt}
