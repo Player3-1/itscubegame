@@ -43,6 +43,8 @@ const App: React.FC = () => {
   }, [gameState]);
 
   const [user, setUser] = useState<User | null>(null);
+  // userRef: game loop ve callback'ler her zaman güncel user'ı okusun
+  const userRef = useRef<User | null>(null);
   const [levels, setLevels] = useState<LevelMetadata[]>([]);
   const [drafts, setDrafts] = useState<DraftLevel[]>([]);
   const [currentDraft, setCurrentDraft] = useState<DraftLevel | null>(null);
@@ -232,8 +234,9 @@ const App: React.FC = () => {
 
   // FIX 3: saveUserFull artık hem state'i hem localStorage'ı hem Firestore'u doğru güncelliyor
   const saveUserFull = async (updatedUser: User) => {
-    // 1. Update State
+    // 1. Update State + Ref (ref her zaman güncel user'ı tutar)
     setUser(updatedUser);
+    userRef.current = updatedUser;
 
     // 2. Update Session Storage
     localStorage.setItem('nd_user', JSON.stringify(updatedUser));
@@ -337,6 +340,7 @@ const App: React.FC = () => {
           localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
           localStorage.setItem('nd_user', JSON.stringify(freshUser));
           setUser(freshUser);
+          userRef.current = freshUser;
           loadDraftsForUser(freshUser.name);
           setGameState(GameState.MENU);
           return;
@@ -469,6 +473,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setUser(null);
+    userRef.current = null;
     localStorage.removeItem('nd_user');
     setGameState(GameState.LOGIN);
     setLoginName("");
@@ -659,7 +664,10 @@ const App: React.FC = () => {
   };
 
   const handleLevelComplete = () => {
-    if (!currentLevel || !user) {
+    // userRef.current kullan — state stale olabilir, ref her zaman güncel
+    const currentUser = userRef.current;
+    if (!currentLevel || !currentUser) {
+      console.warn('handleLevelComplete: currentLevel veya user yok', { currentLevel, currentUser });
       setIsWin(false);
       setScore(0);
       setGameState(GameState.GAME_OVER);
@@ -667,9 +675,17 @@ const App: React.FC = () => {
     }
 
     // 1. Yıldız hesapla
-    const starsAwardedLevels = user.starsAwardedLevels || [];
+    const starsAwardedLevels = currentUser.starsAwardedLevels || [];
     const hasAlreadyEarnedStars = starsAwardedLevels.includes(currentLevel.id);
     const starsToAward = (!hasAlreadyEarnedStars && currentLevel.stars > 0) ? currentLevel.stars : 0;
+
+    console.log('handleLevelComplete:', { 
+      level: currentLevel.name, 
+      stars: currentLevel.stars, 
+      starsToAward, 
+      hasAlreadyEarnedStars,
+      user: currentUser.name 
+    });
 
     // 2. Ekranı HEMEN göster — async bekleme yok
     setScore(100);
@@ -679,18 +695,18 @@ const App: React.FC = () => {
 
     // 3. Arka planda kaydet (fire-and-forget)
     const updatedUser: User = {
-      ...user,
-      completedLevels: user.completedLevels.includes(currentLevel.id)
-        ? user.completedLevels
-        : [...user.completedLevels, currentLevel.id],
+      ...currentUser,
+      completedLevels: currentUser.completedLevels.includes(currentLevel.id)
+        ? currentUser.completedLevels
+        : [...currentUser.completedLevels, currentLevel.id],
       starsAwardedLevels: hasAlreadyEarnedStars
         ? starsAwardedLevels
         : [...starsAwardedLevels, currentLevel.id],
-      totalStars: (user.totalStars || 0) + starsToAward,
+      totalStars: (currentUser.totalStars || 0) + starsToAward,
       starAwards: starsToAward > 0
-        ? { ...(user.starAwards || {}), [currentLevel.id]: { stars: starsToAward, timestamp: Date.now() } }
-        : (user.starAwards || {}),
-      highestProgress: { ...user.highestProgress, [currentLevel.id]: 100 }
+        ? { ...(currentUser.starAwards || {}), [currentLevel.id]: { stars: starsToAward, timestamp: Date.now() } }
+        : (currentUser.starAwards || {}),
+      highestProgress: { ...currentUser.highestProgress, [currentLevel.id]: 100 }
     };
 
     saveUserFull(updatedUser).catch(err => console.error('Save user error:', err));
@@ -782,6 +798,8 @@ const App: React.FC = () => {
     if (!user || !currentLevel) return;
     const currentHighest = user.highestProgress?.[currentLevel.id] || 0;
     if (progress > currentHighest) {
+      // Sadece local state ve localStorage güncelle — Firestore'a her frame yazma!
+      // Firestore kaydı bölüm bitince handleLevelComplete'de yapılıyor.
       const updatedUser = {
         ...user,
         highestProgress: {
@@ -789,7 +807,14 @@ const App: React.FC = () => {
           [currentLevel.id]: progress
         }
       };
-      saveUserFull(updatedUser);
+      setUser(updatedUser);
+      userRef.current = updatedUser;
+      localStorage.setItem('nd_user', JSON.stringify(updatedUser));
+      const usersDb = getUsersDB();
+      const idx = usersDb.findIndex(u => u.name === updatedUser.name);
+      if (idx !== -1) usersDb[idx] = updatedUser;
+      else usersDb.push(updatedUser);
+      localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
       setNewBestAchieved(true);
     }
   };
