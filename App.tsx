@@ -73,8 +73,9 @@ const App: React.FC = () => {
   const [levelSearch, setLevelSearch] = useState("");
   const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
   const [newBestAchieved, setNewBestAchieved] = useState(false);
-  // FIX 1: starsEarned artık handleLevelComplete içinde doğru set ediliyor
   const [starsEarned, setStarsEarned] = useState(0);
+  // isWin ayrı state olarak tutuluyor — score async güncellendiği için GAME_OVER ekranında güvenilir değil
+  const [isWin, setIsWin] = useState(false);
 
   const getDraftsKey = (name?: string) => `nd_drafts_${name || 'anon'}`;
 
@@ -657,26 +658,26 @@ const App: React.FC = () => {
     })();
   };
 
-  // FIX 5: handleLevelComplete — starsEarned state'i artık doğru güncelleniyor
-  const handleLevelComplete = async () => {
+  const handleLevelComplete = () => {
     if (!currentLevel || !user) {
+      setIsWin(false);
+      setScore(0);
       setGameState(GameState.GAME_OVER);
       return;
     }
 
-    // 1. Calculate stars to award
+    // 1. Yıldız hesapla
     const starsAwardedLevels = user.starsAwardedLevels || [];
     const hasAlreadyEarnedStars = starsAwardedLevels.includes(currentLevel.id);
+    const starsToAward = (!hasAlreadyEarnedStars && currentLevel.stars > 0) ? currentLevel.stars : 0;
 
-    let starsToAward = 0;
-    if (!hasAlreadyEarnedStars && currentLevel.stars > 0) {
-      starsToAward = currentLevel.stars;
-    }
-
-    // 2. Set starsEarned so the GAME_OVER screen shows it correctly
+    // 2. Ekranı HEMEN göster — async bekleme yok
+    setScore(100);
+    setIsWin(true);
     setStarsEarned(starsToAward);
+    setGameState(GameState.GAME_OVER);
 
-    // 3. Update user object
+    // 3. Arka planda kaydet (fire-and-forget)
     const updatedUser: User = {
       ...user,
       completedLevels: user.completedLevels.includes(currentLevel.id)
@@ -687,39 +688,20 @@ const App: React.FC = () => {
         : [...starsAwardedLevels, currentLevel.id],
       totalStars: (user.totalStars || 0) + starsToAward,
       starAwards: starsToAward > 0
-        ? {
-            ...(user.starAwards || {}),
-            [currentLevel.id]: { stars: starsToAward, timestamp: Date.now() }
-          }
+        ? { ...(user.starAwards || {}), [currentLevel.id]: { stars: starsToAward, timestamp: Date.now() } }
         : (user.starAwards || {}),
-      highestProgress: {
-        ...user.highestProgress,
-        [currentLevel.id]: 100
-      }
+      highestProgress: { ...user.highestProgress, [currentLevel.id]: 100 }
     };
 
-    // 4. Save to Firebase and Local
-    await saveUserFull(updatedUser);
+    saveUserFull(updatedUser).catch(err => console.error('Save user error:', err));
 
-    // 5. Update level plays (locally and Firebase)
-    const updatedLevels = levels.map(l => {
-      if (l.id === currentLevel.id) {
-        return { ...l, plays: (l.plays || 0) + 1 };
-      }
-      return l;
-    });
+    const updatedLevels = levels.map(l =>
+      l.id === currentLevel.id ? { ...l, plays: (l.plays || 0) + 1 } : l
+    );
     setLevels(updatedLevels);
     localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
-
-    try {
-      const levelRef = doc(db, 'levels', currentLevel.id);
-      await updateDoc(levelRef, { plays: increment(1) });
-    } catch (err) {
-      console.error('Error updating level plays in Firestore:', err);
-    }
-
-    // 6. Show Game Over screen
-    setGameState(GameState.GAME_OVER);
+    updateDoc(doc(db, 'levels', currentLevel.id), { plays: increment(1) })
+      .catch(err => console.error('Error updating plays:', err));
   };
 
   const handlePlayLevel = async (level: LevelMetadata) => {
@@ -762,7 +744,8 @@ const App: React.FC = () => {
 
     setCurrentLevel(level);
     setScore(0);
-    setStarsEarned(0); // Reset stars display before playing
+    setIsWin(false);     // Yeni bölüm başlarken sıfırla
+    setStarsEarned(0);   // Reset stars display before playing
     setCurrentAttempt(1);
     setNewBestAchieved(false);
     setGameState(GameState.PLAYING);
@@ -1814,7 +1797,8 @@ const App: React.FC = () => {
   }
 
   if (gameState === GameState.GAME_OVER && currentLevel) {
-    const isWin = score >= 100;
+    // isWin artık score'dan türetilmiyor — handleLevelComplete tarafından set edilen state kullanılıyor
+    // Bu sayede async gecikme veya score sıfırlanması sorunu yaşanmıyor
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white relative p-4">
