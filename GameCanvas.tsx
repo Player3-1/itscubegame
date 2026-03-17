@@ -37,6 +37,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // FIX: onWin ve onDeath'i ref ile sar — böylece GameCanvas'ın game loop'u
+  // her zaman App.tsx'teki EN GÜNCEL versiyonu çağırır (stale closure sorunu çözüldü)
+  const onWinRef = useRef(onWin);
+  const onDeathRef = useRef(onDeath);
+  useEffect(() => { onWinRef.current = onWin; }, [onWin]);
+  useEffect(() => { onDeathRef.current = onDeath; }, [onDeath]);
   
   const player = useRef({
     x: 100,
@@ -46,21 +53,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     isJumping: false,
     isDead: false,
     onPlatform: false,
-    gravityDirection: 1, // 1 for down, -1 for up
-    currentSpeed: BASE_SPEED, // Oyuncunun mevcut hızı
-    jumpsAvailable: 0, // Double jump disabled
-    inWave: false
+    gravityDirection: 1,
+    currentSpeed: BASE_SPEED,
+    jumpsAvailable: 0,
+    inWave: false,
+    inJetpack: false,
+    isCube: false,
+    wasInJetpackPortal: false,
+    wasInCubePortal: false,
   });
   
   const obstacles = useRef<Obstacle[]>([]);
   const particles = useRef<Particle[]>([]);
-  const trail = useRef<Array<{ x: number; y: number; life: number }>>([]);
+  const trail = useRef<Array<{ x: number; y: number; life: number; hue?: number }>>([]);
   const cameraX = useRef(0);
   const cameraY = useRef(0);
   const frameId = useRef<number>(0);
   const hasWon = useRef(false);
-
   const orbPressed = useRef(false);
+  const isHoldingJump = useRef(false);
+  const jumpQueued = useRef(false);
 
   const getRotatedAabb = (o: Obstacle) => {
     const rot = ((o.rotation ?? 0) % 360 + 360) % 360;
@@ -71,9 +83,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const y = o.y + (o.height - h) / 2;
     return { x, y, w, h };
   };
-  
-  const isHoldingJump = useRef(false);
-  const jumpQueued = useRef(false);
 
   // Initialize Level
   useEffect(() => {
@@ -127,7 +136,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Input Event Listeners
   useEffect(() => {
-  const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'ArrowUp') {
         e.preventDefault();
         isHoldingJump.current = true;
@@ -193,7 +202,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [gameState, setGameState]);
+  }, [gameState, setGameState, jumpButton]);
 
   const spawnParticles = (x: number, y: number, color: string) => {
     for (let i = 0; i < 20; i++) {
@@ -210,10 +219,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   const handleDeath = () => {
-    if (player.current.isDead) {
-      return;
-    }
-
+    if (player.current.isDead) return;
     player.current.isDead = true;
     spawnParticles(player.current.x + PLAYER_SIZE / 2, player.current.y + PLAYER_SIZE / 2, playerColor);
 
@@ -231,18 +237,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       setTimeout(shake, 100);
     }
 
-    onDeath();
+    // ref üzerinden çağır — her zaman güncel App.tsx fonksiyonunu çağırır
+    onDeathRef.current();
   };
 
   const draw = (ctx: CanvasRenderingContext2D) => {
     const p = player.current;
-    // Clear canvas - fill entire canvas
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvasRef.current?.width || GAME_WIDTH, canvasRef.current?.height || GAME_HEIGHT);
 
-    if (!isInitialized) {
-      return;
-    }
+    if (!isInitialized) return;
 
     ctx.save();
     ctx.translate(-cameraX.current, -cameraY.current);
@@ -250,7 +254,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     // Ground/Floor area
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(cameraX.current, GROUND_HEIGHT, GAME_WIDTH + 500, GAME_HEIGHT - GROUND_HEIGHT + cameraY.current);
-    
     ctx.fillStyle = '#334155';
     ctx.fillRect(cameraX.current, GROUND_HEIGHT, GAME_WIDTH + 500, 4);
 
@@ -288,23 +291,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.strokeStyle = '#000';
         ctx.stroke();
       } else if (obs.type === ObstacleType.SPIKE_DOWN) {
-        // Inverted spike: red spike hanging down from ceiling
         ctx.fillStyle = COLORS.spike;
         ctx.beginPath();
-        ctx.moveTo(obs.x, obs.y); // sol üst
-        ctx.lineTo(obs.x + obs.width, obs.y); // sağ üst
-        ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height); // alt orta
+        ctx.moveTo(obs.x, obs.y);
+        ctx.lineTo(obs.x + obs.width, obs.y);
+        ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = '#000';
         ctx.stroke();
       } else if (obs.type === ObstacleType.SMALL_SPIKE_DOWN) {
-        // Inverted small spike: red spike hanging down from ceiling
         ctx.fillStyle = COLORS.spike;
         ctx.beginPath();
-        ctx.moveTo(obs.x, obs.y + obs.height / 2); // sol orta
-        ctx.lineTo(obs.x + obs.width, obs.y + obs.height / 2); // sağ orta
-        ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height); // alt orta
+        ctx.moveTo(obs.x, obs.y + obs.height / 2);
+        ctx.lineTo(obs.x + obs.width, obs.y + obs.height / 2);
+        ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = '#000';
@@ -315,12 +316,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
         ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.fillRect(obs.x, obs.y, obs.width, 4);
         ctx.fillStyle = COLORS.block;
       } else if (obs.type === ObstacleType.HALF_BLOCK) {
-        // Half block (old style)
         ctx.fillStyle = COLORS.halfBlock;
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
         ctx.strokeStyle = '#000';
@@ -340,184 +339,169 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
         ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-        
         ctx.fillStyle = '#fff';
-        const cx = obs.x + obs.width / 2;
-        const cy = obs.y + obs.height / 2;
+        const bcx = obs.x + obs.width / 2;
+        const bcy = obs.y + obs.height / 2;
         ctx.beginPath();
-        ctx.moveTo(cx - 6, cy + 4);
-        ctx.lineTo(cx + 6, cy + 4);
-        ctx.lineTo(cx + 6, cy - 2);
-        ctx.lineTo(cx + 2, cy - 2);
-        ctx.lineTo(cx + 2, cy - 8);
-        ctx.lineTo(cx - 2, cy - 8);
-        ctx.lineTo(cx - 2, cy - 2);
-        ctx.lineTo(cx - 6, cy - 2);
+        ctx.moveTo(bcx - 6, bcy + 4);
+        ctx.lineTo(bcx + 6, bcy + 4);
+        ctx.lineTo(bcx + 6, bcy - 2);
+        ctx.lineTo(bcx + 2, bcy - 2);
+        ctx.lineTo(bcx + 2, bcy - 8);
+        ctx.lineTo(bcx - 2, bcy - 8);
+        ctx.lineTo(bcx - 2, bcy - 2);
+        ctx.lineTo(bcx - 6, bcy - 2);
         ctx.closePath();
         ctx.fill();
-                 } else if (obs.type === ObstacleType.FLOOR_GAP) {
-                     ctx.clearRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
-                     const grad = ctx.createLinearGradient(0, GROUND_HEIGHT, 0, GAME_HEIGHT);
-                     grad.addColorStop(0, '#000');
-                     grad.addColorStop(1, '#0f172a');
-                     ctx.fillStyle = grad;
-                     ctx.fillRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
-                 } else if (obs.type === ObstacleType.DECOR_1) {
-                     ctx.fillStyle = '#10b981';
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                 } else if (obs.type === ObstacleType.FAKE_SPIKE) {
-                     ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
-                     ctx.beginPath();
-                     ctx.moveTo(obs.x, obs.y + obs.height);
-                     ctx.lineTo(obs.x + obs.width / 2, obs.y);
-                     ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
-                     ctx.fill();
-                     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-                     ctx.stroke();
-                 } else if (obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
-                     ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
-                     ctx.beginPath();
-                     ctx.moveTo(obs.x, obs.y);
-                     ctx.lineTo(obs.x + obs.width, obs.y);
-                     ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
-                     ctx.closePath();
-                     ctx.fill();
-                     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-                     ctx.stroke();
-                 } else if (obs.type === ObstacleType.GRAVITY_UP) {
-                     ctx.fillStyle = COLORS.gravityUp;
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     // Draw up arrow
-                     ctx.fillStyle = '#000';
-                     const cx = obs.x + obs.width / 2;
-                     const cy = obs.y + obs.height / 2;
-                     ctx.beginPath();
-                     ctx.moveTo(cx, cy - 8);
-                     ctx.lineTo(cx + 4, cy - 4);
-                     ctx.lineTo(cx - 4, cy - 4);
-                     ctx.closePath();
-                     ctx.fill();
-                     ctx.fillRect(cx - 1, cy - 4, 2, 8);
-                 } else if (obs.type === ObstacleType.GRAVITY_NORMAL) {
-                     ctx.fillStyle = COLORS.gravityNormal;
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     // Draw down arrow
-                     ctx.fillStyle = '#000';
-                     const cx = obs.x + obs.width / 2;
-                     const cy = obs.y + obs.height / 2;
-                     ctx.beginPath();
-                     ctx.moveTo(cx, cy + 8);
-                     ctx.lineTo(cx + 4, cy + 4);
-                     ctx.lineTo(cx - 4, cy + 4);
-                     ctx.closePath();
-                     ctx.fill();
-                     ctx.fillRect(cx - 1, cy - 4, 2, 8);
-                 } else if (obs.type === ObstacleType.SLOW_BLOCK) {
-                     // Pembe yavaşlatıcı blok
-                     ctx.fillStyle = COLORS.slowBlock;
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     // Yavaşlama sembolü - aşağı ok
-                     ctx.fillStyle = '#000';
-                     const cx_slow = obs.x + obs.width / 2;
-                     const cy_slow = obs.y + obs.height / 2;
-                     ctx.beginPath();
-                     ctx.moveTo(cx_slow, cy_slow - 8);
-                     ctx.lineTo(cx_slow + 4, cy_slow - 4);
-                     ctx.lineTo(cx_slow - 4, cy_slow - 4);
-                     ctx.closePath();
-                     ctx.fill();
-                 } else if (obs.type === ObstacleType.NORMAL_BLOCK) {
-                     // Mavi normal blok
-                     ctx.fillStyle = COLORS.normalBlock;
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     // Normal sembolü - N harfi
-                     ctx.fillStyle = '#000';
-                     const cx_normal = obs.x + obs.width / 2;
-                     const cy_normal = obs.y + obs.height / 2;
-                     ctx.font = 'bold 16px Arial';
-                     ctx.textAlign = 'center';
-                     ctx.textBaseline = 'middle';
-                     ctx.fillText('N', cx_normal, cy_normal);
-                 } else if (obs.type === ObstacleType.FAST_BLOCK) {
-                     // Yeşil hızlandırıcı blok
-                     ctx.fillStyle = COLORS.fastBlock;
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     // Hızlandırma sembolü - yukarı ok
-                     ctx.fillStyle = '#000';
-                     const cx_fast = obs.x + obs.width / 2;
-                     const cy_fast = obs.y + obs.height / 2;
-                     ctx.beginPath();
-                     ctx.moveTo(cx_fast, cy_fast + 8);
-                     ctx.lineTo(cx_fast + 4, cy_fast + 4);
-                     ctx.lineTo(cx_fast - 4, cy_fast + 4);
-                     ctx.closePath();
-                     ctx.fill();
-                 } else if (obs.type === ObstacleType.ORB) {
-                     // Sarı yuvarlak orb
-                     ctx.fillStyle = COLORS.orb;
-                     ctx.beginPath();
-                     ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, obs.width / 2, 0, Math.PI * 2);
-                     ctx.fill();
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.stroke();
-                     // İç ışık efekti
-                     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                     ctx.beginPath();
-                     ctx.arc(obs.x + obs.width / 3, obs.y + obs.height / 3, obs.width / 6, 0, Math.PI * 2);
-                     ctx.fill();
-                 } else if (obs.type === ObstacleType.GRAVITY_ORB) {
-                     // Mavi gravity orb
-                     ctx.fillStyle = COLORS.gravityOrb;
-                     ctx.beginPath();
-                     ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, obs.width / 2, 0, Math.PI * 2);
-                     ctx.fill();
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.stroke();
-                     // Inner highlight
-                     ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-                     ctx.beginPath();
-                     ctx.arc(obs.x + obs.width / 3, obs.y + obs.height / 3, obs.width / 6, 0, Math.PI * 2);
-                     ctx.fill();
-                 } else if (obs.type === ObstacleType.WAVE_PORTAL) {
-                     ctx.fillStyle = '#8b5cf6';
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.fillStyle = '#000';
-                     ctx.font = 'bold 14px Arial';
-                     ctx.textAlign = 'center';
-                     ctx.textBaseline = 'middle';
-                     ctx.fillText('W', obs.x + obs.width / 2, obs.y + obs.height / 2);
-                 } else if (obs.type === ObstacleType.CUBE_PORTAL) {
-                     ctx.fillStyle = '#a855f7';
-                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.strokeStyle = '#000';
-                     ctx.lineWidth = 2;
-                     ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-                     ctx.fillStyle = '#000';
-                     ctx.font = 'bold 14px Arial';
-                     ctx.textAlign = 'center';
-                     ctx.textBaseline = 'middle';
-                     ctx.fillText('C', obs.x + obs.width / 2, obs.y + obs.height / 2);
-                 }
+      } else if (obs.type === ObstacleType.FLOOR_GAP) {
+        ctx.clearRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
+        const grad = ctx.createLinearGradient(0, GROUND_HEIGHT, 0, GAME_HEIGHT);
+        grad.addColorStop(0, '#000');
+        grad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(obs.x, GROUND_HEIGHT, obs.width, GAME_HEIGHT - GROUND_HEIGHT);
+      } else if (obs.type === ObstacleType.DECOR_1) {
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+      } else if (obs.type === ObstacleType.FAKE_SPIKE) {
+        ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(obs.x, obs.y + obs.height);
+        ctx.lineTo(obs.x + obs.width / 2, obs.y);
+        ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.stroke();
+      } else if (obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
+        ctx.fillStyle = 'rgba(255, 0, 60, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(obs.x, obs.y);
+        ctx.lineTo(obs.x + obs.width, obs.y);
+        ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.stroke();
+      } else if (obs.type === ObstacleType.GRAVITY_UP) {
+        ctx.fillStyle = COLORS.gravityUp;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        const gucx = obs.x + obs.width / 2;
+        const gucy = obs.y + obs.height / 2;
+        ctx.beginPath();
+        ctx.moveTo(gucx, gucy - 8);
+        ctx.lineTo(gucx + 4, gucy - 4);
+        ctx.lineTo(gucx - 4, gucy - 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(gucx - 1, gucy - 4, 2, 8);
+      } else if (obs.type === ObstacleType.GRAVITY_NORMAL) {
+        ctx.fillStyle = COLORS.gravityNormal;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        const gncx = obs.x + obs.width / 2;
+        const gncy = obs.y + obs.height / 2;
+        ctx.beginPath();
+        ctx.moveTo(gncx, gncy + 8);
+        ctx.lineTo(gncx + 4, gncy + 4);
+        ctx.lineTo(gncx - 4, gncy + 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(gncx - 1, gncy - 4, 2, 8);
+      } else if (obs.type === ObstacleType.SLOW_BLOCK) {
+        ctx.fillStyle = COLORS.slowBlock;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        const scx = obs.x + obs.width / 2;
+        const scy = obs.y + obs.height / 2;
+        ctx.beginPath();
+        ctx.moveTo(scx, scy - 8);
+        ctx.lineTo(scx + 4, scy - 4);
+        ctx.lineTo(scx - 4, scy - 4);
+        ctx.closePath();
+        ctx.fill();
+      } else if (obs.type === ObstacleType.NORMAL_BLOCK) {
+        ctx.fillStyle = COLORS.normalBlock;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('N', obs.x + obs.width / 2, obs.y + obs.height / 2);
+      } else if (obs.type === ObstacleType.FAST_BLOCK) {
+        ctx.fillStyle = COLORS.fastBlock;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        const fcx = obs.x + obs.width / 2;
+        const fcy = obs.y + obs.height / 2;
+        ctx.beginPath();
+        ctx.moveTo(fcx, fcy + 8);
+        ctx.lineTo(fcx + 4, fcy + 4);
+        ctx.lineTo(fcx - 4, fcy + 4);
+        ctx.closePath();
+        ctx.fill();
+      } else if (obs.type === ObstacleType.ORB) {
+        ctx.fillStyle = COLORS.orb;
+        ctx.beginPath();
+        ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, obs.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.beginPath();
+        ctx.arc(obs.x + obs.width / 3, obs.y + obs.height / 3, obs.width / 6, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (obs.type === ObstacleType.GRAVITY_ORB) {
+        ctx.fillStyle = COLORS.gravityOrb;
+        ctx.beginPath();
+        ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, obs.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.beginPath();
+        ctx.arc(obs.x + obs.width / 3, obs.y + obs.height / 3, obs.width / 6, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (obs.type === ObstacleType.WAVE_PORTAL) {
+        ctx.fillStyle = '#8b5cf6';
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('W', obs.x + obs.width / 2, obs.y + obs.height / 2);
+      } else if (obs.type === ObstacleType.CUBE_PORTAL) {
+        ctx.fillStyle = '#a855f7';
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('C', obs.x + obs.width / 2, obs.y + obs.height / 2);
+      }
       ctx.restore();
     });
 
@@ -529,7 +513,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.globalAlpha = 1.0;
     });
 
-    // Trail (behind player) — wave only
+    // Trail
     const isCubeTrailEnabled = localStorage.getItem('mod_cubetrail_enabled') === 'true';
     const isRainbowTrailEnabled = localStorage.getItem('mod_rainbowtrail_enabled') === 'true';
 
@@ -555,14 +539,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.save();
       ctx.translate(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2);
       ctx.rotate((p.rotation * Math.PI) / 180);
-
       ctx.shadowBlur = 15;
       ctx.shadowColor = playerColor;
 
-      const isWave = p.inWave;
-
-      if (isWave) {
-        // Triangle player (wave)
+      if (p.inWave) {
         const waveSize = PLAYER_SIZE * 0.72;
         ctx.fillStyle = playerColor;
         ctx.beginPath();
@@ -571,22 +551,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.lineTo(waveSize / 2, waveSize / 2);
         ctx.closePath();
         ctx.fill();
-
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
         ctx.stroke();
       } else {
-        // Cube player (normal)
         ctx.fillStyle = playerColor;
         ctx.fillRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
-
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
         ctx.strokeRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
       }
 
-      // Faces / expressions (disabled in wave mode)
-      if (!isWave) {
+      if (!p.inWave) {
         ctx.fillStyle = '#000';
         if (playerFace === 'happy') {
           ctx.fillRect(-7, -7, 5, 5);
@@ -651,7 +627,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const p = player.current;
 
-    // Trail update (wave only)
+    // Trail
     if (p.inWave) {
       trail.current.push({ x: p.x + PLAYER_SIZE / 2, y: p.y + PLAYER_SIZE / 2, life: 0.9 });
       if (trail.current.length > 26) trail.current.shift();
@@ -663,12 +639,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     p.x += p.currentSpeed * deltaTime;
     cameraX.current = p.x - 100;
 
-    // Camera Y: no vertical follow in normal mode
     if (p.inWave) {
       cameraY.current = 0;
     }
 
-    // Determine Floor Level
+    // Floor Level
     let floorY = p.gravityDirection === 1 ? GROUND_HEIGHT - PLAYER_SIZE : 0;
 
     const overGap = obstacles.current.some(obs =>
@@ -688,9 +663,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           const condition = p.gravityDirection === 1 ? p.y <= blockTop + 15 : p.y >= blockTop - 15;
           if (condition) {
             const better = p.gravityDirection === 1 ? blockTop < floorY : blockTop > floorY;
-            if (better) {
-              floorY = blockTop;
-            }
+            if (better) floorY = blockTop;
           }
         }
       }
@@ -701,14 +674,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const waveAccel = 0.65;
       const waveMaxSpeed = 7.5;
       const dir = isHoldingJump.current ? -1 : 1;
-
-      // accelerate toward target vertical speed
       const targetDy = dir * waveMaxSpeed;
       p.dy += (targetDy - p.dy) * waveAccel * deltaTime;
-      // clamp
       if (p.dy > waveMaxSpeed) p.dy = waveMaxSpeed;
       if (p.dy < -waveMaxSpeed) p.dy = -waveMaxSpeed;
-
       p.y += p.dy * deltaTime;
     } else {
       p.dy += GRAVITY * p.gravityDirection * deltaTime;
@@ -721,10 +690,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       p.dy = 0;
       p.onPlatform = true;
       p.isJumping = false;
-      p.jumpsAvailable = 0; // Double jump disabled
+      p.jumpsAvailable = 0;
 
       if (p.inWave) {
-        // Wave on ground: look forward
         p.rotation = 90;
       } else {
         const snap = Math.round(p.rotation / 90) * 90;
@@ -737,14 +705,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     } else {
       p.onPlatform = false;
       if (p.inWave) {
-        // Wave: point up when rising, point down when falling
         p.rotation = p.dy < 0 ? 180 : 0;
       } else {
         p.rotation += 6 * deltaTime * p.gravityDirection;
       }
     }
 
-    // Ceiling collision removed for normal gravity
     if (p.gravityDirection === -1) {
       if (p.y >= GROUND_HEIGHT - PLAYER_SIZE) {
         p.y = GROUND_HEIGHT - PLAYER_SIZE;
@@ -752,12 +718,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     }
 
-    // Die on touching top boundary
     if (p.y <= 0) {
       handleDeath();
     }
 
-    // Wave mode: auto ceiling 12 blocks above ground
     if (p.inWave) {
       const ceilingY = GROUND_HEIGHT - 30 * 12;
       if (p.y <= ceilingY) {
@@ -767,8 +731,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     }
 
-    // Jump Handling
-    if (!p.inWave && (p.onPlatform) && (isHoldingJump.current || jumpQueued.current)) {
+    // Jump
+    if (!p.inWave && p.onPlatform && (isHoldingJump.current || jumpQueued.current)) {
       p.dy = JUMP_FORCE * p.gravityDirection;
       p.isJumping = true;
       p.onPlatform = false;
@@ -791,115 +755,80 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         p.y + hitBoxBuffer < a.y + a.h - hitBoxBuffer
       ) {
         if (obs.type === ObstacleType.GRAVITY_UP) {
-          p.gravityDirection = -1;
-          p.dy = 0;
-          p.isJumping = false;
-          continue;
+          p.gravityDirection = -1; p.dy = 0; p.isJumping = false; continue;
         }
-
         if (obs.type === ObstacleType.GRAVITY_NORMAL) {
-          p.gravityDirection = 1;
-          p.dy = 0;
-          p.isJumping = false;
-          continue;
+          p.gravityDirection = 1; p.dy = 0; p.isJumping = false; continue;
         }
-
         if (obs.type === ObstacleType.WAVE_PORTAL) {
-          p.inWave = true;
-          p.dy = 0;
-          p.isJumping = false;
-          continue;
+          p.inWave = true; p.dy = 0; p.isJumping = false; continue;
         }
-
         if (obs.type === ObstacleType.CUBE_PORTAL) {
-          p.inWave = false;
-          p.dy = 0;
-          p.isJumping = false;
-          continue;
+          p.inWave = false; p.dy = 0; p.isJumping = false; continue;
         }
-
         if (obs.type === ObstacleType.SLOW_BLOCK) {
-          p.currentSpeed = BASE_SPEED * 0.7; // 30% yavaşlat
+          p.currentSpeed = BASE_SPEED * 0.7;
           spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.slowBlock);
           continue;
         }
-
         if (obs.type === ObstacleType.NORMAL_BLOCK) {
-          p.currentSpeed = BASE_SPEED; // Normal hıza döndür
+          p.currentSpeed = BASE_SPEED;
           spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.normalBlock);
           continue;
         }
-
         if (obs.type === ObstacleType.FAST_BLOCK) {
-          p.currentSpeed = BASE_SPEED * 1.25; // 25% hızlandır
+          p.currentSpeed = BASE_SPEED * 1.25;
           spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.fastBlock);
           continue;
         }
-
         if (obs.type === ObstacleType.ORB) {
           const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
-          const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
+          const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12;
           const orbCenterX = obs.x + obs.width / 2;
           const orbCenterY = obs.y + obs.height / 2;
           const playerCenterX = p.x + PLAYER_SIZE / 2;
           const playerCenterY = p.y + PLAYER_SIZE / 2;
-          const distance = Math.sqrt(
-            Math.pow(orbCenterX - playerCenterX, 2) +
-            Math.pow(orbCenterY - playerCenterY, 2)
-          );
+          const distance = Math.sqrt(Math.pow(orbCenterX - playerCenterX, 2) + Math.pow(orbCenterY - playerCenterY, 2));
           const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
-          // ORB - yukarı zıplatma
           if (!obs.passed && orbPressed.current && distance <= maxDistance) {
             obs.passed = true;
             p.y = obs.y - PLAYER_SIZE;
             p.dy = -12 * p.gravityDirection;
             p.isJumping = true;
             spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.orb);
-            setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
+            setTimeout(() => { obs.passed = false; }, 100);
           }
           continue;
         }
-
         if (obs.type === ObstacleType.GRAVITY_ORB) {
           const orbHitboxEnabled = localStorage.getItem('mod_orbhitbox_enabled') === 'true';
-          const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12; // Increased hitboxes
+          const orbHitboxBuffer = orbHitboxEnabled ? 20 : 12;
           const orbCenterX = obs.x + obs.width / 2;
           const orbCenterY = obs.y + obs.height / 2;
           const playerCenterX = p.x + PLAYER_SIZE / 2;
           const playerCenterY = p.y + PLAYER_SIZE / 2;
-          const distance = Math.sqrt(
-            Math.pow(orbCenterX - playerCenterX, 2) +
-            Math.pow(orbCenterY - playerCenterY, 2)
-          );
+          const distance = Math.sqrt(Math.pow(orbCenterX - playerCenterX, 2) + Math.pow(orbCenterY - playerCenterY, 2));
           const maxDistance = obs.width / 2 + PLAYER_SIZE / 2 + orbHitboxBuffer;
-          // Mavi orb - basınca yer çekimini değiştir
           if (!obs.passed && distance <= maxDistance) {
             obs.passed = true;
             p.gravityDirection = p.gravityDirection === 1 ? -1 : 1;
             p.dy = 0;
             p.isJumping = false;
             spawnParticles(p.x + PLAYER_SIZE / 2, p.y + PLAYER_SIZE / 2, COLORS.gravityOrb);
-            setTimeout(() => { obs.passed = false; }, 100); // Reduced cooldown for consecutive orbs
+            setTimeout(() => { obs.passed = false; }, 100);
           }
           continue;
         }
-
         if (p.y > GROUND_HEIGHT && obs.type !== ObstacleType.FLOOR_GAP) {
-          handleDeath();
-          return;
+          handleDeath(); return;
         }
-
         if (obs.type === ObstacleType.SPIKE || obs.type === ObstacleType.SPIKE_DOWN ||
             obs.type === ObstacleType.SMALL_SPIKE || obs.type === ObstacleType.SMALL_SPIKE_DOWN) {
-          handleDeath();
-          return;
+          handleDeath(); return;
         }
-
-        // Fake spikes are visual only, no collision
         if (obs.type === ObstacleType.FAKE_SPIKE || obs.type === ObstacleType.FAKE_SPIKE_DOWN) {
           continue;
         }
-
         if (obs.type === ObstacleType.BOUNCER) {
           if (!obs.passed) {
             obs.passed = true;
@@ -911,13 +840,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
           continue;
         }
-
         if (obs.type === ObstacleType.BLOCK || obs.type === ObstacleType.HALF_BLOCK || obs.type === ObstacleType.DECOR_1) {
-          if (Math.abs((p.y + PLAYER_SIZE) - a.y) < 5) {
-            continue;
-          }
-          handleDeath();
-          return;
+          if (Math.abs((p.y + PLAYER_SIZE) - a.y) < 5) continue;
+          handleDeath(); return;
         }
       }
     }
@@ -925,9 +850,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     // Win/Death Bounds
     if (p.x > levelData.length) {
       hasWon.current = true;
-      onWin();
+      // FIX: ref üzerinden çağır — her zaman App.tsx'teki güncel handleLevelComplete'i çağırır
+      onWinRef.current();
     }
-    if (p.gravityDirection === 1 && p.y > GAME_HEIGHT + 50 || p.gravityDirection === -1 && p.y < -50) {
+    if ((p.gravityDirection === 1 && p.y > GAME_HEIGHT + 50) || (p.gravityDirection === -1 && p.y < -50)) {
       handleDeath();
     }
 
@@ -944,7 +870,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     });
     particles.current = particles.current.filter(pt => pt.life > 0);
 
-    // Trail fade + prune off-screen points (wave only)
+    // Trail fade
     if (p.inWave) {
       const minX = cameraX.current - 60;
       const maxX = cameraX.current + GAME_WIDTH + 60;
@@ -952,11 +878,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const maxY = cameraY.current + GAME_HEIGHT + 60;
       trail.current = trail.current
         .map((t) => ({ ...t, life: t.life - 0.07 * deltaTime }))
-        .filter((t) =>
-          t.life > 0 &&
-          t.x >= minX && t.x <= maxX &&
-          t.y >= minY && t.y <= maxY
-        );
+        .filter((t) => t.life > 0 && t.x >= minX && t.x <= maxX && t.y >= minY && t.y <= maxY);
     } else {
       trail.current = [];
     }
@@ -966,7 +888,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -976,13 +897,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const loop = (time: number) => {
       const deltaTime = Math.min((time - lastTime) / 16.67, 2.0);
       lastTime = time;
-
-      // Update
       updatePhysics(deltaTime);
-
-      // Draw
       draw(ctx);
-
       frameId.current = requestAnimationFrame(loop);
     };
 
@@ -1003,31 +919,17 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const updateCanvasSize = () => {
-      const parent = canvas.parentElement;
-      if (parent && (gameState === GameState.PLAYING || isTestMode)) {
-        // Set internal resolution to game constants
-        canvas.width = GAME_WIDTH;
-        canvas.height = GAME_HEIGHT;
-      } else {
-        canvas.width = GAME_WIDTH;
-        canvas.height = GAME_HEIGHT;
-      }
-    };
-
-    updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    canvas.width = GAME_WIDTH;
+    canvas.height = GAME_HEIGHT;
+    window.addEventListener('resize', () => {
+      canvas.width = GAME_WIDTH;
+      canvas.height = GAME_HEIGHT;
+    });
   }, [gameState, isTestMode]);
 
   return (
     <div className={containerClasses}>
-      <canvas
-        ref={canvasRef}
-        className="touch-none"
-        style={canvasStyle}
-      />
+      <canvas ref={canvasRef} className="touch-none" style={canvasStyle} />
       <button
         onClick={() => setGameState(GameState.LEVEL_SELECT)}
         onTouchStart={() => setGameState(GameState.LEVEL_SELECT)}
@@ -1036,11 +938,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         EXIT
       </button>
       {(gameState === GameState.PLAYING || isTestMode) && (
-        <>
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
-            {isTestMode ? 'TEST MODE' : `Attempt #${attempt} — ${progress}%`}
-          </div>
-        </>
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm font-mono pointer-events-none bg-black/20 px-3 py-1 rounded">
+          {isTestMode ? 'TEST MODE' : `Attempt #${attempt} — ${progress}%`}
+        </div>
       )}
       <div className="absolute inset-0 z-10 touch-manipulation pointer-events-none" />
     </div>

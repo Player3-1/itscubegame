@@ -704,8 +704,17 @@ const App: React.FC = () => {
       .catch(err => console.error('Error updating plays:', err));
   };
 
-  const handlePlayLevel = async (level: LevelMetadata) => {
-    // Retroactive stars
+  const handlePlayLevel = (level: LevelMetadata) => {
+    // Oyun ANINDA başlasın — hiçbir Firestore bekleme yok
+    setCurrentLevel(level);
+    setScore(0);
+    setIsWin(false);
+    setStarsEarned(0);
+    setCurrentAttempt(1);
+    setNewBestAchieved(false);
+    setGameState(GameState.PLAYING);
+
+    // Arka planda: retroaktif yıldız + plays güncelleme (fire-and-forget)
     if (user) {
       const dbLocal = getUsersDB();
       const freshUser = dbLocal.find(u => u.name === user.name) || user;
@@ -722,33 +731,17 @@ const App: React.FC = () => {
             [level.id]: { stars: starsToAward, timestamp: Date.now() }
           }
         };
-        await saveUserFull(updatedUser);
+        saveUserFull(updatedUser).catch(err => console.error('Retroactive stars save error:', err));
       }
     }
 
-    const updatedLevels = levels.map(l => {
-      if (l.id === level.id) {
-        return { ...l, plays: (l.plays || 0) + 1 };
-      }
-      return l;
-    });
+    const updatedLevels = levels.map(l =>
+      l.id === level.id ? { ...l, plays: (l.plays || 0) + 1 } : l
+    );
     setLevels(updatedLevels);
     localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
-
-    try {
-      const ref = doc(db, 'levels', level.id);
-      await updateDoc(ref, { plays: increment(1) });
-    } catch (err) {
-      console.error('Firestore update plays error:', err);
-    }
-
-    setCurrentLevel(level);
-    setScore(0);
-    setIsWin(false);     // Yeni bölüm başlarken sıfırla
-    setStarsEarned(0);   // Reset stars display before playing
-    setCurrentAttempt(1);
-    setNewBestAchieved(false);
-    setGameState(GameState.PLAYING);
+    updateDoc(doc(db, 'levels', level.id), { plays: increment(1) })
+      .catch(err => console.error('Firestore update plays error:', err));
   };
 
   const handleLikeLevel = (levelId: string) => {

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ObstacleType, LevelData, Obstacle, GameState, DraftLevel } from './types.ts';
 import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from './constants.ts';
-import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Handshake, Zap } from 'lucide-react';
+import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Zap } from 'lucide-react';
 import { GameCanvas } from './GameCanvas.tsx';
 //test
 interface LevelEditorProps {
