@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GameCanvas } from './GameCanvas';
 import LevelEditor from './LevelEditor';
-import { GameState, LevelData, User, LevelMetadata, ObstacleType, DraftLevel, VerifyDeal } from './types.ts';
-import { ADMIN_PASSWORD, COLORS } from './constants.ts';
+import { GameState, LevelData, User, LevelMetadata, ObstacleType, DraftLevel, VerifyDeal } from './types';
+import { ADMIN_PASSWORD, COLORS } from './constants';
 import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2, Package } from 'lucide-react';
-import { db } from './firebase.ts';
+import { db } from './firebase';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc, increment } from 'firebase/firestore';
 
 // Start with empty levels
