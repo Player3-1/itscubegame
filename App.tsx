@@ -661,36 +661,23 @@ const App: React.FC = () => {
   };
 
   const handleLevelComplete = () => {
-    // userRef.current kullan — state stale olabilir, ref her zaman güncel
-    const currentUser = userRef.current;
+    // localStorage'dan en güncel user verisini al — state ve ref ikisi de stale olabilir
+    const sessionRaw = localStorage.getItem('nd_user');
+    const currentUser: User | null = sessionRaw ? JSON.parse(sessionRaw) : userRef.current;
+
     if (!currentLevel || !currentUser) {
-      console.warn('handleLevelComplete: currentLevel veya user yok', { currentLevel, currentUser });
       setIsWin(false);
       setScore(0);
       setGameState(GameState.GAME_OVER);
       return;
     }
 
-    // 1. Yıldız hesapla
+    // 1. Yıldız hesapla — localStorage'dan gelen taze veriyle
     const starsAwardedLevels = currentUser.starsAwardedLevels || [];
     const hasAlreadyEarnedStars = starsAwardedLevels.includes(currentLevel.id);
     const starsToAward = (!hasAlreadyEarnedStars && currentLevel.stars > 0) ? currentLevel.stars : 0;
 
-    console.log('handleLevelComplete:', { 
-      level: currentLevel.name, 
-      stars: currentLevel.stars, 
-      starsToAward, 
-      hasAlreadyEarnedStars,
-      user: currentUser.name 
-    });
-
-    // 2. Ekranı HEMEN göster — async bekleme yok
-    setScore(100);
-    setIsWin(true);
-    setStarsEarned(starsToAward);
-    setGameState(GameState.GAME_OVER);
-
-    // 3. Arka planda kaydet (fire-and-forget)
+    // 2. updatedUser oluştur
     const updatedUser: User = {
       ...currentUser,
       completedLevels: currentUser.completedLevels.includes(currentLevel.id)
@@ -706,6 +693,22 @@ const App: React.FC = () => {
       highestProgress: { ...currentUser.highestProgress, [currentLevel.id]: 100 }
     };
 
+    // 3. Hemen her yere yaz — Firestore bekleme
+    userRef.current = updatedUser;
+    setUser(updatedUser);
+    localStorage.setItem('nd_user', JSON.stringify(updatedUser));
+    const usersDb = getUsersDB();
+    const uidx = usersDb.findIndex(u => u.name === updatedUser.name);
+    if (uidx !== -1) usersDb[uidx] = updatedUser; else usersDb.push(updatedUser);
+    localStorage.setItem('nd_users_db', JSON.stringify(usersDb));
+
+    // 4. Ekranı göster
+    setScore(100);
+    setIsWin(true);
+    setStarsEarned(starsToAward);
+    setGameState(GameState.GAME_OVER);
+
+    // 5. Firestore arka planda
     saveUserFull(updatedUser).catch(err => console.error('Save user error:', err));
 
     const updatedLevels = levels.map(l =>
