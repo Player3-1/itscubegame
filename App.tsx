@@ -983,7 +983,7 @@ const App: React.FC = () => {
               {user?.name}
             </div>
             <div className="text-xs text-yellow-400 flex items-center justify-end gap-1">
-              <Star size={12} fill="currentColor" /> {user?.totalStars} Stars
+              <Star size={12} fill="currentColor" /> {userRef.current?.totalStars ?? user?.totalStars ?? 0} Stars
             </div>
           </div>
           <button onClick={() => setShowSettings(true)} className="bg-slate-800/50 p-1 sm:p-2 rounded hover:bg-slate-700 text-xs">Settings</button>
@@ -1815,8 +1815,14 @@ const App: React.FC = () => {
   }
 
   if (gameState === GameState.GAME_OVER && currentLevel) {
-    // isWin artık score'dan türetilmiyor — handleLevelComplete tarafından set edilen state kullanılıyor
-    // Bu sayede async gecikme veya score sıfırlanması sorunu yaşanmıyor
+    // Menüye dönünce userRef'i state'e sync et — yıldız sayısı hemen güncellensin
+    const goToMenu = () => {
+      if (userRef.current) setUser(userRef.current);
+      setGameState(GameState.LEVEL_SELECT);
+    };
+
+    // Toplam yıldızı userRef'ten oku — state gecikmeli olabilir
+    const totalStarsNow = (userRef.current?.totalStars ?? user?.totalStars ?? 0);
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white relative p-4">
@@ -1837,9 +1843,15 @@ const App: React.FC = () => {
           </div>
 
           {isWin && starsEarned > 0 && (
-            <div className="flex justify-center items-center gap-2 text-yellow-400 text-lg sm:text-2xl font-bold mb-6 sm:mb-8 bg-yellow-900/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
-              <Trophy size={24} className="sm:w-8 sm:h-8" />
-              +{starsEarned} STARS EARNED!
+            <div className="flex flex-col items-center gap-2 mb-6 sm:mb-8">
+              <div className="flex justify-center items-center gap-2 text-yellow-400 text-lg sm:text-2xl font-bold bg-yellow-900/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30 w-full">
+                <Trophy size={24} className="sm:w-8 sm:h-8" />
+                +{starsEarned} STARS EARNED!
+              </div>
+              <div className="text-yellow-300 text-sm font-mono flex items-center gap-1">
+                <Star size={14} fill="currentColor" />
+                Toplam: {totalStarsNow} yildiz
+              </div>
             </div>
           )}
 
@@ -1851,8 +1863,8 @@ const App: React.FC = () => {
               <RotateCcw size={24} className="sm:w-8 sm:h-8" />
             </button>
             <button
-              onClick={() => setGameState(GameState.LEVEL_SELECT)}
-              onTouchStart={() => setGameState(GameState.LEVEL_SELECT)}
+              onClick={goToMenu}
+              onTouchStart={goToMenu}
               className="bg-slate-600 hover:bg-slate-500 px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold font-orbitron transition hover:scale-105 text-sm sm:text-base"
             >
               MENU
