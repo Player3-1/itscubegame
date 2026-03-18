@@ -489,10 +489,7 @@ const App: React.FC = () => {
     const current = drafts;
     const exists = current.find(d => d.id === draft.id);
 
-    if (!exists && current.length >= 10) {
-      alert('You can only have up to 10 levels.');
-      return;
-    }
+    // Bölüm sayısı sınırı kaldırıldı
 
     const next = exists
       ? current.map(d => (d.id === draft.id ? { ...draft, author: user.name } : d))
@@ -1256,7 +1253,7 @@ const App: React.FC = () => {
     );
   } else if (gameState === GameState.MY_LEVELS) {
     const myDrafts = user ? drafts.filter(d => d.author === user.name) : [];
-    const displayedDrafts = myDrafts.slice(0, 10);
+    const displayedDrafts = myDrafts;
 
     return (
       <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center">
@@ -1378,17 +1375,19 @@ const App: React.FC = () => {
                 >
                   PLAY & VERIFY
                 </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete "${deal.name}"?`)) {
-                      deleteVerifyDeal(deal.id);
-                      window.location.reload();
-                    }
-                  }}
-                  className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-bold text-sm"
-                >
-                  DELETE
-                </button>
+                {(user?.isAdmin || user?.name === deal.author) && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete "${deal.name}"?`)) {
+                        deleteVerifyDeal(deal.id);
+                        window.location.reload();
+                      }
+                    }}
+                    className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-bold text-sm"
+                  >
+                    DELETE
+                  </button>
+                )}
               </div>
             </div>
           ))}
