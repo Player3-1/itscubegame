@@ -256,14 +256,35 @@ const [showMobilePrompt, setShowMobilePrompt] = useState(false);
   }, []);
 
   useEffect(() => {
-    const raw = localStorage.getItem('nd_admin_levels');
-    if (raw) {
+    const loadAdminLevels = async () => {
       try {
-        setAdminLevels(JSON.parse(raw) as LevelMetadata[]);
-      } catch (e) {
-        console.error('Failed to load admin levels:', e);
+        const snap = await getDocs(collection(db, 'admin_levels'));
+        if (!snap.empty) {
+          const remoteAdminLevels: LevelMetadata[] = snap.docs.map((d) => d.data() as LevelMetadata);
+          const normalized = remoteAdminLevels.map((l, idx) => ({
+            ...l,
+            levelNumber: l.levelNumber || idx + 1,
+            stars: typeof l.stars === 'number' ? l.stars : getDifficultyStars(l.difficulty)
+          }));
+          setAdminLevels(normalized);
+          localStorage.setItem('nd_admin_levels', JSON.stringify(normalized));
+          return;
+        }
+      } catch (err) {
+        console.error('Firestore admin levels load error:', err);
       }
-    }
+
+      const raw = localStorage.getItem('nd_admin_levels');
+      if (raw) {
+        try {
+          setAdminLevels(JSON.parse(raw) as LevelMetadata[]);
+        } catch (e) {
+          console.error('Failed to load admin levels:', e);
+        }
+      }
+    };
+
+    loadAdminLevels();
   }, []);
 
   const getUsersDB = (): User[] => {
@@ -561,6 +582,20 @@ const [showMobilePrompt, setShowMobilePrompt] = useState(false);
           ];
       setAdminLevels(nextAdmin);
       localStorage.setItem('nd_admin_levels', JSON.stringify(nextAdmin));
+
+      // Save to Firestore
+      (async () => {
+        try {
+          const adminLevel = nextAdmin.find(l => l.id === draft.id);
+          if (adminLevel) {
+            const ref = doc(db, 'admin_levels', adminLevel.id);
+            await setDoc(ref, adminLevel);
+            console.log('Admin level saved to Firestore:', adminLevel.name);
+          }
+        } catch (err) {
+          console.error('Firestore save admin level error:', err);
+        }
+      })();
     } else {
       // Normal user draft olarak ekle
       const current = drafts;
@@ -2024,6 +2059,18 @@ Version: 1.5
                           );
                           setAdminLevels(updated);
                           localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                          // Save to Firestore
+                          (async () => {
+                            try {
+                              const updatedLevel = updated.find(l => l.id === level.id);
+                              if (updatedLevel) {
+                                const ref = doc(db, 'admin_levels', updatedLevel.id);
+                                await setDoc(ref, updatedLevel);
+                              }
+                            } catch (err) {
+                              console.error('Firestore save admin level stars error:', err);
+                            }
+                          })();
                         }}
                         className="w-full"
                       />
@@ -2039,6 +2086,18 @@ Version: 1.5
                           );
                           setAdminLevels(updated);
                           localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                          // Save to Firestore
+                          (async () => {
+                            try {
+                              const updatedLevel = updated.find(l => l.id === level.id);
+                              if (updatedLevel) {
+                                const ref = doc(db, 'admin_levels', updatedLevel.id);
+                                await setDoc(ref, updatedLevel);
+                              }
+                            } catch (err) {
+                              console.error('Firestore save admin level difficulty error:', err);
+                            }
+                          })();
                         }}
                         className="w-full bg-black text-white px-3 py-2 rounded border border-slate-600"
                       >
@@ -2058,6 +2117,18 @@ Version: 1.5
                           );
                           setAdminLevels(updated);
                           localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                          // Save to Firestore
+                          (async () => {
+                            try {
+                              const updatedLevel = updated.find(l => l.id === level.id);
+                              if (updatedLevel) {
+                                const ref = doc(db, 'admin_levels', updatedLevel.id);
+                                await setDoc(ref, updatedLevel);
+                              }
+                            } catch (err) {
+                              console.error('Firestore save admin level challenge error:', err);
+                            }
+                          })();
                         }}
                         className={`flex-1 px-3 py-2 rounded font-bold text-sm ${
                           level.isChallenge
@@ -2073,6 +2144,16 @@ Version: 1.5
                             const updated = adminLevels.filter(l => l.id !== level.id);
                             setAdminLevels(updated);
                             localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                            // Delete from Firestore
+                            (async () => {
+                              try {
+                                const ref = doc(db, 'admin_levels', level.id);
+                                await deleteDoc(ref);
+                                console.log('Admin level deleted from Firestore:', level.name);
+                              } catch (err) {
+                                console.error('Firestore delete admin level error:', err);
+                              }
+                            })();
                           }
                         }}
                         className="px-3 py-2 rounded font-bold text-sm bg-red-700 hover:bg-red-600 text-white"
