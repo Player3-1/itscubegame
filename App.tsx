@@ -48,10 +48,9 @@ const [showMobilePrompt, setShowMobilePrompt] = useState(false);
     console.log('GameState:', gameState);
   }, [gameState]);
 
-  // Detect mobile and request fullscreen
+  // Request fullscreen when in mobile mode
   useEffect(() => {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile && isMobileMode) {
+    if (isMobileMode) {
       if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
