@@ -85,6 +85,7 @@ export interface LevelMetadata {
   likes: number;
   isAdmin?: boolean; // True if this is a normal level by admin/creator
   isChallenge?: boolean; // True if this is a challenge level
+  copyable?: boolean; // True if this level can be copied by other users
 }
 
 export interface DraftLevel {
@@ -97,6 +98,7 @@ export interface DraftLevel {
   verified: boolean;
   verifiedBy?: string;
   isAdmin?: boolean;
+  copyable?: boolean; // True if this level can be copied by other users
 }
 
 export interface VerifyDeal {

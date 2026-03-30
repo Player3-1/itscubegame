@@ -23,6 +23,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, user, onSaveDra
   const [isAdminLevel, setIsAdminLevel] = useState(initialDraft?.isAdmin || false);
   const [isChallenge, setIsChallenge] = useState(initialDraft?.isAdmin ? (initialDraft as any)?.isChallenge || false : false);
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard' | 'insane' | 'extreme'>(initialDraft?.isAdmin ? (initialDraft as any)?.difficulty || 'normal' : 'normal');
+  const [copyable, setCopyable] = useState(initialDraft?.copyable || false);
   const [selectedTool, setSelectedTool] = useState<ObstacleType | 'ERASER' | 'ROTATE'>(ObstacleType.BLOCK);
   const [selectedCategory, setSelectedCategory] = useState<'blocks' | 'interactive' | 'spikes'>('blocks');
   const [scrollX, setScrollX] = useState(0);
@@ -562,7 +563,8 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, user, onSaveDra
           updatedAt: now,
           verified: initialDraft?.verified || false,
           verifiedBy: initialDraft?.verifiedBy,
-          isAdmin: isAdminLevel
+          isAdmin: isAdminLevel,
+          copyable: copyable
       };
 
       if (isAdminLevel) {
@@ -677,6 +679,18 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, user, onSaveDra
                 )}
               </div>
             )}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="copyable"
+                checked={copyable}
+                onChange={(e) => setCopyable(e.target.checked)}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <label htmlFor="copyable" className="text-sm font-bold flex items-center gap-1 cursor-pointer">
+                📋 Copyable
+              </label>
+            </div>
             <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
                <button
                   onClick={toggleTest}

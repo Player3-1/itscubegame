@@ -906,6 +906,26 @@ const [showMobilePrompt, setShowMobilePrompt] = useState(false);
     }
   };
 
+  const copyLevel = (level: LevelMetadata) => {
+    if (!user) return;
+    
+    const now = Date.now();
+    const newDraft: DraftLevel = {
+      id: now.toString(),
+      name: `${level.name} (Copy)`,
+      author: user.name,
+      data: level.data,
+      createdAt: now,
+      updatedAt: now,
+      verified: false,
+      isAdmin: false,
+      copyable: false
+    };
+    
+    saveDraft(newDraft);
+    alert(`Level "${level.name}" copied to your drafts!`);
+  };
+
   const handleProgressUpdate = (progress: number) => {
     if (!user || !currentLevel) return;
     const currentHighest = user.highestProgress?.[currentLevel.id] || 0;
@@ -1950,6 +1970,15 @@ Version: 1.5
                       >
                         <Play size={20} className="sm:w-6 sm:h-6" fill="currentColor" />
                       </button>
+                      {user && (
+                        <button
+                          onClick={() => copyLevel(level)}
+                          className="bg-purple-600 hover:bg-purple-500 p-2 sm:p-3 rounded-full text-white transition hover:scale-110 shadow-lg group-hover:shadow-purple-500/50"
+                          title="Copy this level"
+                        >
+                          📋
+                        </button>
+                      )}
                       {levelView === 'hard' && user?.isAdmin && (
                         <button
                           onClick={() => updateHardestLevels(hardestLevelIds.filter(id => id !== level.id))}
@@ -2164,16 +2193,27 @@ Version: 1.5
                   </div>
                 )}
 
-                <button
-                  onClick={() => {
-                    setCurrentLevel(level);
-                    setCurrentAttempt(0);
-                    setGameState(GameState.PLAYING);
-                  }}
-                  className="w-full mt-3 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold"
-                >
-                  PLAY
-                </button>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => {
+                      setCurrentLevel(level);
+                      setCurrentAttempt(0);
+                      setGameState(GameState.PLAYING);
+                    }}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold"
+                  >
+                    PLAY
+                  </button>
+                  {user && (
+                    <button
+                      onClick={() => copyLevel(level)}
+                      className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded font-bold text-white"
+                      title="Copy this level"
+                    >
+                      📋
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
