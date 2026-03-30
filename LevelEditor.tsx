@@ -709,8 +709,8 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, user, onSaveDra
                       length: Math.max(...obstacles.map(o => o.x), 1000) + 1000,
                       music: selectedMusic
                   }}
-                  onDeath={() => setIsTesting(false)}
-                  onWin={() => setIsTesting(false)}
+                  onDeath={() => { stopMusic(); setIsTesting(false); }}
+                  onWin={() => { stopMusic(); setIsTesting(false); }}
                   playerColor={COLORS.player}
                   isTestMode={true}
               />

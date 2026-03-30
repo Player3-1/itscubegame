@@ -153,7 +153,7 @@ const App: React.FC = () => {
       levelNumber: newLevelNumber,
       name: draft.name,
       author: draft.author,
-      difficulty: 'Unlisted',
+      difficulty: 'unlisted',
       stars: 0,
       verifiedBy,
       data: draft.data,
@@ -645,7 +645,7 @@ const App: React.FC = () => {
       id: deal.draftId,
       name: deal.name,
       author: deal.author,
-      difficulty: 'Unlisted',
+      difficulty: 'unlisted',
       stars: 0,
       data: deal.data,
       plays: 0,
@@ -672,17 +672,17 @@ const App: React.FC = () => {
   const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty'], starRating?: number) => {
     if (!user?.isAdmin) return;
 
-    const baseStarsMap = { 'Unlisted': 0, 'Easy': 2, 'Normal': 4, 'Hard': 6, 'Insane': 8, 'Extreme': 12 };
+    const baseStarsMap = { unlisted: 0, easy: 2, normal: 4, hard: 6, insane: 8, extreme: 12 };
     let calculatedStars = baseStarsMap[diff] || 0;
 
-    if (diff !== 'Unlisted' && starRating !== undefined) {
+    if (diff !== 'unlisted' && starRating !== undefined) {
       if (starRating === 0 || starRating === 1) {
         calculatedStars -= 1;
       } else if (starRating === 2) {
         // Normal, no change
       } else if (starRating === 3) {
         calculatedStars += 1;
-      } else if (diff === 'Extreme' && starRating === 4) {
+      } else if (diff === 'extreme' && starRating === 4) {
         calculatedStars = 15;
       }
       calculatedStars = Math.max(0, calculatedStars);
@@ -1277,6 +1277,8 @@ Version: 1.5
     const currentFace = user?.selectedFace || 'default';
     const stars = user?.totalStars || 0;
 
+    const faceColor = currentColor?.toLowerCase?.() === '#000000' ? '#fff' : '#000';
+
     return (
       <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center justify-center">
         <div className="w-full max-w-3xl">
@@ -1306,12 +1308,14 @@ Version: 1.5
                           ctx.save();
                           ctx.translate(64, 64);
                           ctx.scale(3, 3);
-                          ctx.fillStyle = '#000';
+
+                          ctx.fillStyle = faceColor;
                           if (currentFace === 'happy') {
                             ctx.fillRect(-7, -7, 5, 5);
                             ctx.fillRect(2, -7, 5, 5);
                             ctx.beginPath();
                             ctx.arc(0, 3, 7, 0, Math.PI);
+                            ctx.strokeStyle = faceColor;
                             ctx.stroke();
                           } else if (currentFace === 'angry') {
                             ctx.fillRect(-7, -7, 5, 5);
@@ -1321,6 +1325,7 @@ Version: 1.5
                             ctx.lineTo(-2, -9);
                             ctx.moveTo(7, -11);
                             ctx.lineTo(2, -9);
+                            ctx.strokeStyle = faceColor;
                             ctx.stroke();
                             ctx.fillRect(-7, 4, 14, 2);
                           } else if (currentFace === 'surprised') {
@@ -1328,6 +1333,7 @@ Version: 1.5
                             ctx.fillRect(3, -7, 4, 6);
                             ctx.beginPath();
                             ctx.arc(0, 4, 4, 0, Math.PI * 2);
+                            ctx.strokeStyle = faceColor;
                             ctx.stroke();
                           } else if (currentFace === 'cool') {
                             ctx.fillRect(-9, -5, 7, 4);
@@ -1335,12 +1341,14 @@ Version: 1.5
                             ctx.fillRect(-2, -4, 4, 1);
                             ctx.beginPath();
                             ctx.arc(0, 5, 6, 0, Math.PI);
+                            ctx.strokeStyle = faceColor;
                             ctx.stroke();
                           } else if (currentFace === 'admin') {
                             ctx.fillRect(-7, -7, 5, 5);
                             ctx.fillRect(2, -7, 5, 5);
                             ctx.beginPath();
                             ctx.arc(0, 4, 3, 0, Math.PI);
+                            ctx.strokeStyle = faceColor;
                             ctx.stroke();
                           } else {
                             ctx.fillRect(-7, -7, 5, 5);
@@ -2120,6 +2128,7 @@ Version: 1.5
         setScore={setScore}
         levelData={currentLevel.data}
         jumpButton={jumpButton}
+        isMobileMode={isMobileMode}
         onDeath={() => {
           if (autoRespawn) {
             setScore(0);

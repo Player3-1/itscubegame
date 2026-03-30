@@ -8,7 +8,7 @@ interface GameCanvasProps {
   setGameState: (state: GameState) => void;
   setScore: (score: number) => void;
   levelData: LevelData;
-  onDeath: () => void;ıı
+  onDeath: () => void;
   attempt?: number;
   progress?: number;
   autoRespawn?: boolean;
@@ -16,6 +16,7 @@ interface GameCanvasProps {
   onWin: () => void;
   playerColor?: string;
   playerFace?: string;
+  isMobileMode?: boolean;
   isTestMode?: boolean;
   onProgressUpdate?: (progress: number) => void;
   jumpButton?: number | string;
@@ -30,6 +31,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onWin,
   playerColor = COLORS.player,
   playerFace = 'default',
+  isMobileMode = false,
   isTestMode = false,
   attempt = 0,
   progress = 0,
@@ -581,6 +583,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.shadowBlur = 15;
       ctx.shadowColor = playerColor;
 
+      const faceColor = playerColor?.toLowerCase?.() === '#000000' ? '#fff' : '#000';
+
       if (p.inWave) {
         const waveSize = PLAYER_SIZE * 0.72;
         ctx.fillStyle = playerColor;
@@ -602,13 +606,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
 
       if (!p.inWave) {
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = faceColor;
         if (playerFace === 'happy') {
           ctx.fillRect(-7, -7, 5, 5);
           ctx.fillRect(2, -7, 5, 5);
           ctx.beginPath();
           ctx.arc(0, 3, 7, 0, Math.PI);
-          ctx.strokeStyle = '#000';
+          ctx.strokeStyle = faceColor;
           ctx.lineWidth = 2;
           ctx.stroke();
         } else if (playerFace === 'angry') {
@@ -619,7 +623,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ctx.lineTo(-2, -9);
           ctx.moveTo(7, -11);
           ctx.lineTo(2, -9);
-          ctx.strokeStyle = '#000';
+          ctx.strokeStyle = faceColor;
           ctx.lineWidth = 2;
           ctx.stroke();
           ctx.fillRect(-7, 4, 14, 2);
@@ -628,7 +632,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ctx.fillRect(3, -7, 4, 6);
           ctx.beginPath();
           ctx.arc(0, 4, 4, 0, Math.PI * 2);
-          ctx.strokeStyle = '#000';
+          ctx.strokeStyle = faceColor;
           ctx.lineWidth = 2;
           ctx.stroke();
         } else if (playerFace === 'cool') {
@@ -637,7 +641,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ctx.fillRect(-2, -4, 4, 1);
           ctx.beginPath();
           ctx.arc(0, 5, 6, 0, Math.PI);
-          ctx.strokeStyle = '#000';
+          ctx.strokeStyle = faceColor;
           ctx.lineWidth = 2;
           ctx.stroke();
         } else if (playerFace === 'admin') {
@@ -645,7 +649,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ctx.fillRect(2, -7, 5, 5);
           ctx.beginPath();
           ctx.arc(0, 3, 3, 0, Math.PI);
-          ctx.strokeStyle = '#000';
+          ctx.strokeStyle = faceColor;
           ctx.lineWidth = 2;
           ctx.stroke();
         } else {
@@ -949,9 +953,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, [gameState, isTestMode, isInitialized, levelData, isFrozen]);
 
-  const containerClasses = (gameState === GameState.PLAYING || isTestMode)
+  const shouldFullscreen = isTestMode || (gameState === GameState.PLAYING && isMobileMode);
+
+  const containerClasses = shouldFullscreen
     ? "fixed inset-0 w-screen h-screen z-50 bg-[#0f172a] flex items-center justify-center cursor-none"
-    : "relative w-full max-w-[800px] aspect-video rounded-xl overflow-hidden shadow-2xl border-4 border-slate-700 bg-[#0f172a] select-none";
+    : "relative w-full max-w-[900px] aspect-video rounded-xl overflow-hidden shadow-2xl border-4 border-slate-700 bg-[#0f172a] select-none mx-auto";
 
   const canvasStyle = (gameState === GameState.PLAYING || isTestMode)
     ? { width: '100%', height: '100%', objectFit: 'contain' as const, maxHeight: '100vh', maxWidth: '100vw', display: 'block' }
