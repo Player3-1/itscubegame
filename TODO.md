@@ -1,12 +1,9 @@
-# Task Completion Tracker
+# Cube Dash Version Update TODO
 
-## Completed Tasks
-- [x] Fix LevelEditor fullscreen squished appearance by adding 'aspect-video' class to canvas container
-- [x] Improve character faces in GameCanvas: Fix default face eyes positioning and add mouth
-- [x] Add face expression visibility in LEADERBOARD alongside character color
-- [x] Verify CHARACTER_SELECT already shows face name clearly
+**Status: 1/1 complete ✓**
 
-## Followup Steps
-- [ ] Test the level editor in different screen sizes to ensure no squishing
-- [ ] Verify face drawings render correctly in game
-- [ ] Check leaderboard and character select displays for proper face visibility
+## Tasks:
+- [x] Update App.tsx version display from "1.4.2" → "1.5"
+
+**All tasks completed!**
+

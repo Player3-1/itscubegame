@@ -2,7 +2,9 @@ export enum GameState {
    LOGIN = 'LOGIN',
    MENU = 'MENU',
    SHOP = 'SHOP',
+   LEVEL_SELECT_MODE = 'LEVEL_SELECT_MODE', // Choose between Normal Levels and User Levels
    LEVEL_SELECT = 'LEVEL_SELECT',
+   ADMIN_LEVELS = 'ADMIN_LEVELS', // Admin view for normal levels (both normal and challenge)
    EDITOR = 'EDITOR',
    PLAYING = 'PLAYING',
    GAME_OVER = 'GAME_OVER',
@@ -67,6 +69,7 @@ export interface LevelData {
   obstacles: Obstacle[]; // Changed from relative to absolute for editor
   theme: 'neon-cyan' | 'sunset-magenta' | 'toxic-green';
   length: number; // Level length in pixels
+  music?: 'track1' | 'track2' | 'track3' | 'track4' | 'track5'; // Optional music selection
 }
 
 export interface LevelMetadata {
@@ -74,12 +77,14 @@ export interface LevelMetadata {
   name: string;
   author: string;
   levelNumber?: number; // incremental human-friendly ID (1,2,3...)
-  difficulty: 'Unlisted' | 'Easy' | 'Normal' | 'Hard' | 'Insane' | 'Extreme';
+  difficulty: 'unlisted' | 'easy' | 'normal' | 'hard' | 'insane' | 'extreme';
   stars: number; // 0 if unlisted, 2, 4, 6, 8, 12 otherwise
   verifiedBy?: string;
   data: LevelData;
   plays: number;
   likes: number;
+  isAdmin?: boolean; // True if this is a normal level by admin/creator
+  isChallenge?: boolean; // True if this is a challenge level
 }
 
 export interface DraftLevel {
@@ -91,6 +96,7 @@ export interface DraftLevel {
   updatedAt: number;
   verified: boolean;
   verifiedBy?: string;
+  isAdmin?: boolean;
 }
 
 export interface VerifyDeal {

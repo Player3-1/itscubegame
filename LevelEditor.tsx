@@ -1,11 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ObstacleType, LevelData, Obstacle, GameState, DraftLevel } from './types.ts';
+import { ObstacleType, LevelData, Obstacle, GameState, DraftLevel, User } from './types.ts';
 import { GAME_HEIGHT, GAME_WIDTH, GROUND_HEIGHT, COLORS } from './constants.ts';
-import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Zap } from 'lucide-react';
+import { Save, Trash2, Box, Triangle, GripHorizontal, ArrowRight, ArrowUp, Play, Square, Eraser, RotateCw, CheckCircle, Zap, Shield } from 'lucide-react';
 import { GameCanvas } from './GameCanvas.tsx';
+import { stop as stopMusic } from './music.ts';
 //test
 interface LevelEditorProps {
   initialDraft?: DraftLevel;
+  user?: User;
   onSaveDraft: (draft: DraftLevel) => void;
   onRequestVerify: (draft: DraftLevel) => void;
   onSendVerifyDeal: (draft: DraftLevel) => void;
@@ -14,9 +16,13 @@ interface LevelEditorProps {
 
 const GRID_SIZE = 30;
 
-const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, onRequestVerify, onSendVerifyDeal, onExit }) => {
+const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, user, onSaveDraft, onRequestVerify, onSendVerifyDeal, onExit }) => {
   const [obstacles, setObstacles] = useState<Obstacle[]>(initialDraft?.data.obstacles || []);
   const [levelName, setLevelName] = useState(initialDraft?.name || 'New Level');
+  const [selectedMusic, setSelectedMusic] = useState<'track1' | 'track2' | 'track3' | 'track4' | 'track5'>(initialDraft?.data.music || 'track1');
+  const [isAdminLevel, setIsAdminLevel] = useState(initialDraft?.isAdmin || false);
+  const [isChallenge, setIsChallenge] = useState(initialDraft?.isAdmin ? (initialDraft as any)?.isChallenge || false : false);
+  const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard' | 'insane' | 'extreme'>(initialDraft?.isAdmin ? (initialDraft as any)?.difficulty || 'normal' : 'normal');
   const [selectedTool, setSelectedTool] = useState<ObstacleType | 'ERASER' | 'ROTATE'>(ObstacleType.BLOCK);
   const [selectedCategory, setSelectedCategory] = useState<'blocks' | 'interactive' | 'spikes'>('blocks');
   const [scrollX, setScrollX] = useState(0);
@@ -543,10 +549,11 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
       const levelData: LevelData = {
           obstacles: obstacles,
           theme: 'neon-cyan',
-          length: Math.max(...obstacles.map(o => o.x + o.width), 1000) + 500
+          length: Math.max(...obstacles.map(o => o.x + o.width), 1000) + 500,
+          music: selectedMusic
       };
 
-      return {
+      const draft: DraftLevel = {
           id: initialDraft?.id || now.toString(),
           name: levelName,
           author: initialDraft?.author || 'Anon',
@@ -554,8 +561,16 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
           createdAt: initialDraft?.createdAt || now,
           updatedAt: now,
           verified: initialDraft?.verified || false,
-          verifiedBy: initialDraft?.verifiedBy
+          verifiedBy: initialDraft?.verifiedBy,
+          isAdmin: isAdminLevel
       };
+
+      if (isAdminLevel) {
+        (draft as any).isChallenge = isChallenge;
+        (draft as any).difficulty = difficulty;
+      }
+
+      return draft;
   };
 
   const handleSaveDraft = () => {
@@ -597,14 +612,71 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
   return (
     <div className="flex flex-col gap-4 w-full h-screen">
        <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-800 p-2 sm:p-4 rounded-lg gap-2 sm:gap-0">
-           <div className="flex items-center gap-3 w-full sm:w-auto">
+           <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
              <input
                 value={levelName}
                 onChange={(e) => setLevelName(e.target.value)}
                 className="bg-slate-900 text-white px-3 py-2 rounded border border-slate-700 flex-1 sm:flex-none"
                 placeholder="Level Name"
              />
+             <select
+                value={selectedMusic}
+                onChange={(e) => setSelectedMusic(e.target.value as 'track1' | 'track2' | 'track3' | 'track4' | 'track5')}
+                className="bg-slate-900 text-white px-3 py-2 rounded border border-slate-700 text-sm"
+             >
+                <option value="track1">🎵 Neon Dreams</option>
+                <option value="track2">🎵 Digital Rush</option>
+                <option value="track3">🎵 Pixel Journey</option>
+                <option value="track4">🎵 Cosmic Wave</option>
+                <option value="track5">🎵 Retro Game</option>
+             </select>
             </div>
+            {user?.isAdmin && (
+              <div className="flex items-center gap-4 justify-center sm:justify-end">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="isAdminLevel"
+                    checked={isAdminLevel}
+                    onChange={(e) => setIsAdminLevel(e.target.checked)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <label htmlFor="isAdminLevel" className="text-sm font-bold flex items-center gap-1 cursor-pointer">
+                    <Shield size={14} className="sm:w-4 sm:h-4" /> Admin Level
+                  </label>
+                </div>
+                {isAdminLevel && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="isChallenge"
+                        checked={isChallenge}
+                        onChange={(e) => setIsChallenge(e.target.checked)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                      <label htmlFor="isChallenge" className="text-sm font-bold flex items-center gap-1 cursor-pointer">
+                        🏆 Challenge
+                      </label>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1">Difficulty</label>
+                      <select
+                        value={difficulty}
+                        onChange={(e) => setDifficulty(e.target.value as any)}
+                        className="w-40 bg-black text-white px-2 py-1 rounded border border-slate-600 text-sm"
+                      >
+                        <option value="easy">Easy</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
+                        <option value="insane">Insane</option>
+                        <option value="extreme">Extreme</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
                <button
                   onClick={toggleTest}
@@ -614,7 +686,7 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
                </button>
                {!isTesting && (
                   <>
-                      <button onClick={onExit} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Exit</button>
+                      <button onClick={() => { stopMusic(); onExit(); }} className="px-3 sm:px-4 py-2 bg-red-600 rounded font-bold hover:bg-red-500 text-sm sm:text-base">Exit</button>
                       <button onClick={handleSaveDraft} className="px-3 sm:px-4 py-2 bg-green-600 rounded font-bold flex gap-2 items-center hover:bg-green-500 text-sm sm:text-base">
                           <Save size={16} className="sm:w-5 sm:h-5" /> SAVE DRAFT
                       </button>
@@ -634,7 +706,8 @@ const LevelEditor: React.FC<LevelEditorProps> = ({ initialDraft, onSaveDraft, on
                   levelData={{
                       obstacles: obstacles,
                       theme: 'neon-cyan',
-                      length: Math.max(...obstacles.map(o => o.x), 1000) + 1000
+                      length: Math.max(...obstacles.map(o => o.x), 1000) + 1000,
+                      music: selectedMusic
                   }}
                   onDeath={() => setIsTesting(false)}
                   onWin={() => setIsTesting(false)}

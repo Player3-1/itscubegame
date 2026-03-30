@@ -3,9 +3,10 @@ import { GameCanvas } from './GameCanvas';
 import LevelEditor from './LevelEditor';
 import { GameState, LevelData, User, LevelMetadata, ObstacleType, DraftLevel, VerifyDeal } from './types';
 import { ADMIN_PASSWORD, COLORS } from './constants';
-import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2, Package } from 'lucide-react';
+import { Play, RotateCcw, PenTool, User as UserIcon, Lock, Star, ChevronLeft, ShieldAlert, Globe, Heart, Eye, CheckCircle, LogIn, UserPlus, Trophy, Trash2, Package, Users } from 'lucide-react';
 import { db } from './firebase';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc, increment } from 'firebase/firestore';
+import { playTrack, stop as stopMusic, setVolume } from './music';
 
 // Start with empty levels
 const DEFAULT_LEVELS: LevelMetadata[] = [];
@@ -34,6 +35,14 @@ const getDifficultyStars = (difficulty: string) => {
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.LOGIN);
+  const [showMobilePrompt, setShowMobilePrompt] = useState(() => {
+    const saved = localStorage.getItem('nd_mobile_prompt_shown');
+    return !saved;
+  });
+  const [isMobileMode, setIsMobileMode] = useState(() => {
+    const saved = localStorage.getItem('nd_is_mobile');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   React.useEffect(() => {
     console.log('App mounted');
@@ -42,10 +51,21 @@ const App: React.FC = () => {
     console.log('GameState:', gameState);
   }, [gameState]);
 
+  // Detect mobile and request fullscreen
+  useEffect(() => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile && isMobileMode) {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    }
+  }, [isMobileMode]);
+
   const [user, setUser] = useState<User | null>(null);
   // userRef: game loop ve callback'ler her zaman güncel user'ı okusun
   const userRef = useRef<User | null>(null);
   const [levels, setLevels] = useState<LevelMetadata[]>([]);
+  const [adminLevels, setAdminLevels] = useState<LevelMetadata[]>([]);
   const [drafts, setDrafts] = useState<DraftLevel[]>([]);
   const [currentDraft, setCurrentDraft] = useState<DraftLevel | null>(null);
   const [verifyDraft, setVerifyDraft] = useState<DraftLevel | null>(null);
@@ -60,20 +80,26 @@ const App: React.FC = () => {
   const [assignLevelId, setAssignLevelId] = useState('');
   const [assignDifficulty, setAssignDifficulty] = useState<LevelMetadata['difficulty']>('Unlisted');
   const [assignStarRating, setAssignStarRating] = useState(3);
+  const [assignChallenge, setAssignChallenge] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [autoRespawn, setAutoRespawn] = useState<boolean>(() => {
     const v = localStorage.getItem('nd_auto_respawn');
     return v ? JSON.parse(v) : true;
   });
-  const [jumpButton, setJumpButton] = useState<number>(() => {
+  const [jumpButton, setJumpButton] = useState<number | string>(() => {
     const v = localStorage.getItem('nd_jump_button');
-    return v ? parseInt(v) : 0;
+    return v ? (isNaN(parseInt(v)) ? v : parseInt(v)) : 0;
   });
   const [isSettingJumpButton, setIsSettingJumpButton] = useState(false);
+  const [musicVolume, setMusicVolume] = useState<number>(() => {
+    const v = localStorage.getItem('nd_music_volume');
+    return v ? parseFloat(v) : 0.5;
+  });
   const [currentLevel, setCurrentLevel] = useState<LevelMetadata | null>(null);
   const [score, setScore] = useState(0);
   const [levelSearch, setLevelSearch] = useState("");
   const [levelView, setLevelView] = useState<'all' | 'new' | 'hard'>('all');
+  const [adminLevelView, setAdminLevelView] = useState<'normal' | 'challenge'>('normal');
   const [newBestAchieved, setNewBestAchieved] = useState(false);
   const [starsEarned, setStarsEarned] = useState(0);
   // isWin ayrı state olarak tutuluyor — score async güncellendiği için GAME_OVER ekranında güvenilir değil
@@ -88,6 +114,12 @@ const App: React.FC = () => {
     }
     const raw = localStorage.getItem(getDraftsKey(name));
     setDrafts(raw ? (JSON.parse(raw) as DraftLevel[]) : []);
+  };
+
+  // Helper function to determine if a color is dark
+  const isDarkColor = (colorHex: string): boolean => {
+    const darkColors = ['#000000', '#4c1d95']; // black, dark purple
+    return darkColors.includes(colorHex.toLowerCase());
   };
 
   const saveDraftsForUser = (name: string, next: DraftLevel[]) => {
@@ -225,6 +257,17 @@ const App: React.FC = () => {
     };
 
     loadUsers();
+  }, []);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('nd_admin_levels');
+    if (raw) {
+      try {
+        setAdminLevels(JSON.parse(raw) as LevelMetadata[]);
+      } catch (e) {
+        console.error('Failed to load admin levels:', e);
+      }
+    }
   }, []);
 
   const getUsersDB = (): User[] => {
@@ -486,16 +529,54 @@ const App: React.FC = () => {
   const saveDraft = (draft: DraftLevel) => {
     if (!user?.name) return;
 
-    const current = drafts;
-    const exists = current.find(d => d.id === draft.id);
+    // Eğer admin level ise adminLevels'e, değilse normal drafts'a ekle
+    if (draft.isAdmin && user.isAdmin) {
+      // Admin level olarak adminLevels'a ekle
+      const adminExists = adminLevels.find(l => l.id === draft.id);
+      const isChallenge = (draft as any).isChallenge || false;
+      const difficulty = (draft as any).difficulty || 'normal';
+      const nextAdmin = adminExists
+        ? adminLevels.map(l => 
+            l.id === draft.id 
+              ? {
+                  id: draft.id,
+                  levelNumber: l.levelNumber,
+                  name: draft.name,
+                  isAdmin: true,
+                  isChallenge: isChallenge,
+                  difficulty: difficulty,
+                  stars: l.stars || 0,
+                  data: draft.data
+                }
+              : l
+          )
+        : [
+            ...adminLevels,
+            {
+              id: draft.id,
+              levelNumber: adminLevels.length + 1,
+              name: draft.name,
+              isAdmin: true,
+              isChallenge: isChallenge,
+              difficulty: difficulty,
+              stars: 0,
+              data: draft.data
+            }
+          ];
+      setAdminLevels(nextAdmin);
+      localStorage.setItem('nd_admin_levels', JSON.stringify(nextAdmin));
+    } else {
+      // Normal user draft olarak ekle
+      const current = drafts;
+      const exists = current.find(d => d.id === draft.id);
 
-    // Bölüm sayısı sınırı kaldırıldı
+      const next = exists
+        ? current.map(d => (d.id === draft.id ? { ...draft, author: user.name } : d))
+        : [...current, { ...draft, author: user.name }];
 
-    const next = exists
-      ? current.map(d => (d.id === draft.id ? { ...draft, author: user.name } : d))
-      : [...current, { ...draft, author: user.name }];
+      saveDraftsForUser(user.name, next);
+    }
 
-    saveDraftsForUser(user.name, next);
     setCurrentDraft(draft);
   };
 
@@ -893,6 +974,23 @@ const App: React.FC = () => {
     fetchLeaderboard();
   }, [user, gameState]);
 
+  // Music effect - play music when level starts
+  useEffect(() => {
+    if (gameState === GameState.PLAYING && currentLevel) {
+      // Use level's selected music or default to track1
+      const selectedMusic = currentLevel.data.music || 'track1';
+      playTrack(selectedMusic, musicVolume);
+    } else {
+      stopMusic();
+    }
+  }, [gameState, currentLevel?.id, musicVolume]);
+
+  // Volume effect - update volume when it changes
+  useEffect(() => {
+    setVolume(musicVolume);
+    localStorage.setItem('nd_music_volume', musicVolume.toString());
+  }, [musicVolume]);
+
   // --- RENDERERS ---
 
   if (gameState === GameState.LOGIN) {
@@ -973,9 +1071,48 @@ const App: React.FC = () => {
     );
   }
 
+  if (showMobilePrompt && user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white px-4">
+        <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl border border-slate-700 w-full max-w-md text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-4 font-orbitron">
+            Mobile Device?
+          </h2>
+          <p className="text-slate-300 mb-6">
+            Is this game being played on a mobile device? If yes, we'll enable fullscreen mode and optimize the display.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => {
+                setIsMobileMode(true);
+                localStorage.setItem('nd_is_mobile', 'true');
+                localStorage.setItem('nd_mobile_prompt_shown', 'true');
+                setShowMobilePrompt(false);
+              }}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-bold text-white"
+            >
+              Yes, Mobile
+            </button>
+            <button
+              onClick={() => {
+                setIsMobileMode(false);
+                localStorage.setItem('nd_is_mobile', 'false');
+                localStorage.setItem('nd_mobile_prompt_shown', 'true');
+                setShowMobilePrompt(false);
+              }}
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-bold text-white"
+            >
+              No, Desktop
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (gameState === GameState.MENU) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] px-4">
+      <div className={`min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] px-4 ${isMobileMode ? 'fixed inset-0 w-screen h-screen overflow-hidden' : ''}`}>
         <div className="absolute top-4 right-4 flex items-center gap-2 sm:gap-4">
           <div className="text-right">
             <div className="text-cyan-400 font-bold flex items-center justify-end gap-1 sm:gap-2 text-sm sm:text-base">
@@ -1003,22 +1140,71 @@ const App: React.FC = () => {
               </div>
               <div className="mb-4">
                 <span className="text-sm block mb-2">Jump Button:</span>
-                <button
-                  onClick={() => {
-                    setIsSettingJumpButton(true);
-                    const handleMouseDown = (e: MouseEvent) => {
-                      setJumpButton(e.button);
-                      localStorage.setItem('nd_jump_button', e.button.toString());
-                      setIsSettingJumpButton(false);
-                      window.removeEventListener('mousedown', handleMouseDown);
-                    };
-                    window.addEventListener('mousedown', handleMouseDown);
-                  }}
-                  className={`px-4 py-2 rounded font-bold ${isSettingJumpButton ? 'bg-yellow-500 animate-pulse' : 'bg-slate-600 hover:bg-slate-500'}`}
-                >
-                  {isSettingJumpButton ? 'Click any button...' :
-                    (jumpButton === 0 ? 'Left Click' : jumpButton === 1 ? 'Right Click' : 'Middle Click')}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setIsSettingJumpButton(true);
+                      const handleMouseDown = (e: MouseEvent) => {
+                        setJumpButton(e.button);
+                        localStorage.setItem('nd_jump_button', e.button.toString());
+                        setIsSettingJumpButton(false);
+                        window.removeEventListener('mousedown', handleMouseDown);
+                        window.removeEventListener('touchstart', handleTouchStart);
+                      };
+                      const handleTouchStart = (e: TouchEvent) => {
+                        if (e.cancelable) e.preventDefault();
+                        setJumpButton(0);
+                        localStorage.setItem('nd_jump_button', '0');
+                        setIsSettingJumpButton(false);
+                        window.removeEventListener('mousedown', handleMouseDown);
+                        window.removeEventListener('touchstart', handleTouchStart);
+                      };
+                      setTimeout(() => {
+                        window.addEventListener('mousedown', handleMouseDown);
+                        window.addEventListener('touchstart', handleTouchStart, { passive: false });
+                      }, 100);
+                    }}
+                    className={`px-4 py-2 rounded font-bold ${isSettingJumpButton ? 'bg-yellow-500 animate-pulse' : 'bg-slate-600 hover:bg-slate-500'}`}
+                  >
+                    {isSettingJumpButton ? 'Click any button...' :
+                      (typeof jumpButton === 'number' ? (jumpButton === 0 ? 'Left Click' : jumpButton === 1 ? 'Right Click' : 'Middle Click') : 'Mouse')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsSettingJumpButton(true);
+                      const handleKeyDown = (e: KeyboardEvent) => {
+                        if (e.code === 'Escape') {
+                          setIsSettingJumpButton(false);
+                          window.removeEventListener('keydown', handleKeyDown);
+                          return;
+                        }
+                        setJumpButton(e.code);
+                        localStorage.setItem('nd_jump_button', e.code);
+                        setIsSettingJumpButton(false);
+                        window.removeEventListener('keydown', handleKeyDown);
+                      };
+                      setTimeout(() => {
+                        window.addEventListener('keydown', handleKeyDown);
+                      }, 100);
+                    }}
+                    className={`px-4 py-2 rounded font-bold ${isSettingJumpButton ? 'bg-yellow-500 animate-pulse' : 'bg-slate-600 hover:bg-slate-500'}`}
+                  >
+                    {isSettingJumpButton ? 'Press any key...' :
+                      (typeof jumpButton === 'string' ? jumpButton : 'Keyboard')}
+                  </button>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="text-sm block mb-2">Music Volume: {Math.round(musicVolume * 100)}%</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={musicVolume}
+                  onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                />
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowSettings(false)} className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Close</button>
@@ -1042,10 +1228,18 @@ const App: React.FC = () => {
 
           <button
             onClick={() => setGameState(GameState.LEVEL_SELECT)}
-            className="group w-32 h-32 sm:w-40 sm:h-40 bg-cyan-600 hover:bg-cyan-500 border-2 border-cyan-400 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]"
+            className="group w-32 h-32 sm:w-40 sm:h-40 bg-gradient-to-br from-lime-400 to-green-500 hover:from-lime-300 hover:to-green-400 border-3 border-lime-300 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(163,230,53,0.8)]"
           >
             <Play size={32} className="sm:w-12 sm:h-12 text-black fill-black" />
             <span className="font-bold font-orbitron text-sm sm:text-lg text-black">PLAY</span>
+          </button>
+
+          <button
+            onClick={() => setGameState(GameState.ADMIN_LEVELS)}
+            className="group w-32 h-32 sm:w-40 sm:h-40 bg-gradient-to-br from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 border-2 border-blue-400 rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 transition-all hover:scale-110 hover:shadow-[0_0_30px_rgba(59,130,246,0.6)]"
+          >
+            <Package size={32} className="sm:w-12 sm:h-12 text-white" />
+            <span className="font-bold font-orbitron text-sm sm:text-lg text-white">LEVELS</span>
           </button>
 
           <button
@@ -1074,7 +1268,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="mt-4 sm:mt-8 text-center text-slate-500 text-xs sm:text-sm">
-          Version: 1.4.2
+Version: 1.5
         </div>
       </div>
     );
@@ -1491,14 +1685,51 @@ const App: React.FC = () => {
         </div>
       </div>
     );
+  } else if (gameState === GameState.LEVEL_SELECT_MODE) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center justify-center">
+        <div className="w-full max-w-2xl">
+          <button
+            onClick={() => setGameState(GameState.MENU)}
+            className="mb-8 p-2 hover:bg-slate-800 rounded-full self-start"
+          >
+            <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
+          </button>
+          
+          <h2 className="text-3xl sm:text-5xl font-orbitron font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-pink-600 mb-12 text-center">
+            CUBE LEVELS
+          </h2>
+
+          <div className="flex flex-col gap-6">
+            <button
+              onClick={() => setGameState(GameState.ADMIN_LEVELS)}
+              className="group w-full bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 border-2 border-violet-400 rounded-2xl py-8 sm:py-12 flex flex-col items-center justify-center gap-3 sm:gap-4 transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(139,92,246,0.8)]"
+            >
+              <ShieldAlert size={48} className="sm:w-16 sm:h-16 text-white" />
+              <span className="font-bold font-orbitron text-lg sm:text-2xl text-white">ADMİN LEVELS</span>
+              <span className="text-sm text-violet-100">Hazırlanan Bölümler</span>
+            </button>
+
+            <button
+              onClick={() => setGameState(GameState.LEVEL_SELECT)}
+              className="group w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 border-2 border-amber-300 rounded-2xl py-8 sm:py-12 flex flex-col items-center justify-center gap-3 sm:gap-4 transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(251,146,60,0.8)]"
+            >
+              <Users size={48} className="sm:w-16 sm:h-16 text-white" />
+              <span className="font-bold font-orbitron text-lg sm:text-2xl text-white">TOPLULUK</span>
+              <span className="text-sm text-amber-100">Oyuncu Yapımı İçerik</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (gameState === GameState.LEVEL_SELECT) {
     const displayedLevels = levelView === 'hard'
-      ? hardestLevelIds.map(id => levels.find(l => l.id === id)).filter(Boolean) as LevelMetadata[]
+      ? hardestLevelIds.map(id => levels.find(l => l.id === id && !l.isAdmin)).filter(Boolean) as LevelMetadata[]
       : levelView === 'new'
-        ? [...levels].sort((a, b) => b.levelNumber - a.levelNumber)
-        : levels;
+        ? [...levels].filter(l => !l.isAdmin).sort((a, b) => b.levelNumber - a.levelNumber)
+        : levels.filter(l => !l.isAdmin);
 
     return (
       <div className="min-h-screen bg-slate-900 text-white p-2 sm:p-4">
@@ -1736,10 +1967,143 @@ const App: React.FC = () => {
     );
   }
 
+  if (gameState === GameState.ADMIN_LEVELS) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-8 flex flex-col items-center">
+        <div className="w-full max-w-2xl">
+          <div className="flex items-center justify-between mb-4 sm:mb-8">
+            <button 
+              onClick={() => setGameState(GameState.MENU)} 
+              className="p-2 hover:bg-slate-800 rounded-full"
+            >
+              <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
+            </button>
+            <h2 className="text-2xl sm:text-3xl font-orbitron font-bold text-violet-400">Levels</h2>
+            <div className="w-6 sm:w-10"></div>
+          </div>
+
+          <div className="w-full space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+            {adminLevels.filter(l => l.isAdmin).length === 0 && (
+              <div className="text-center text-slate-500 py-10">
+                No levels yet.
+              </div>
+            )}
+            {adminLevels.filter(l => l.isAdmin).map((level) => (
+              <div key={level.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg">{level.name}</h3>
+                    <p className="text-sm text-slate-400">Level #{level.levelNumber}</p>
+                    <p className="text-xs text-slate-500 mt-1 capitalize">
+                      Difficulty: <span className={`font-medium 
+                        ${level.difficulty === 'easy' ? 'text-green-400' : 
+                          level.difficulty === 'normal' ? 'text-yellow-400' : 
+                          level.difficulty === 'hard' ? 'text-red-400' : 
+                          level.difficulty === 'insane' ? 'text-purple-500' : 
+                          level.difficulty === 'extreme' ? 'text-pink-500' : 
+                          'text-slate-500'}`}>{(level.difficulty || 'normal')}</span> • 
+                      <span className="text-yellow-400 font-bold ml-1">{level.stars || 0}⭐</span>
+                    </p>
+                  </div>
+                </div>
+
+                {user?.isAdmin && (
+                  <div className="bg-slate-900 p-3 rounded border border-slate-600 space-y-3">
+                    <div>
+                      <label className="text-sm text-slate-400 block mb-2">Stars: {level.stars || 0} / 20</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        value={level.stars || 0}
+                        onChange={(e) => {
+                          const updated = adminLevels.map(l =>
+                            l.id === level.id ? { ...l, stars: Number(e.target.value) } : l
+                          );
+                          setAdminLevels(updated);
+                          localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm text-slate-400 block mb-2">Difficulty</label>
+                      <select
+                        value={level.difficulty || 'normal'}
+                        onChange={(e) => {
+                          const updated = adminLevels.map(l =>
+                            l.id === level.id ? { ...l, difficulty: e.target.value as any } : l
+                          );
+                          setAdminLevels(updated);
+                          localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                        }}
+                        className="w-full bg-black text-white px-3 py-2 rounded border border-slate-600"
+                      >
+                        <option value="easy">Easy</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
+                        <option value="insane">Insane</option>
+                        <option value="extreme">Extreme</option>
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const updated = adminLevels.map(l =>
+                            l.id === level.id ? { ...l, isChallenge: !l.isChallenge } : l
+                          );
+                          setAdminLevels(updated);
+                          localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                        }}
+                        className={`flex-1 px-3 py-2 rounded font-bold text-sm ${
+                          level.isChallenge
+                            ? 'bg-red-600 hover:bg-red-500'
+                            : 'bg-slate-600 hover:bg-slate-500'
+                        }`}
+                      >
+                        {level.isChallenge ? 'CHALLENGE ✓' : 'MAKE CHALLENGE'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete "${level.name}"?`)) {
+                            const updated = adminLevels.filter(l => l.id !== level.id);
+                            setAdminLevels(updated);
+                            localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
+                          }
+                        }}
+                        className="px-3 py-2 rounded font-bold text-sm bg-red-700 hover:bg-red-600 text-white"
+                      >
+                        DELETE
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setCurrentLevel(level);
+                    setCurrentAttempt(0);
+                    setGameState(GameState.PLAYING);
+                  }}
+                  className="w-full mt-3 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold"
+                >
+                  PLAY
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (gameState === GameState.EDITOR) {
     return (
       <LevelEditor
         initialDraft={currentDraft || undefined}
+        user={user || undefined}
         onSaveDraft={saveDraft}
         onRequestVerify={requestVerify}
         onSendVerifyDeal={sendVerifyDeal}

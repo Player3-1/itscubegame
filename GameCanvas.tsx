@@ -1,13 +1,14 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { GameState, Obstacle, ObstacleType, Particle, LevelData } from './types.ts';
 import { GAME_WIDTH, GAME_HEIGHT, GRAVITY, JUMP_FORCE, GROUND_HEIGHT, PLAYER_SIZE, BASE_SPEED, COLORS } from './constants.ts';
+import { restartTrack, playTrack as playMusicTrack, stop as stopMusic } from './music.ts';
 
 interface GameCanvasProps {
   gameState: GameState;
   setGameState: (state: GameState) => void;
   setScore: (score: number) => void;
   levelData: LevelData;
-  onDeath: () => void;
+  onDeath: () => void;ıı
   attempt?: number;
   progress?: number;
   autoRespawn?: boolean;
@@ -17,7 +18,7 @@ interface GameCanvasProps {
   playerFace?: string;
   isTestMode?: boolean;
   onProgressUpdate?: (progress: number) => void;
-  jumpButton?: number;
+  jumpButton?: number | string;
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
@@ -37,6 +38,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
 
   // FIX: onWin ve onDeath'i ref ile sar — böylece GameCanvas'ın game loop'u
   // her zaman App.tsx'teki EN GÜNCEL versiyonu çağırır (stale closure sorunu çözüldü)
@@ -134,10 +136,35 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   }, [gameState, isTestMode, levelData]);
 
+  // Music effect for test mode and direct gameState playing
+  useEffect(() => {
+    if ((gameState === GameState.PLAYING || isTestMode) && levelData) {
+      const selectedMusic = levelData.music || 'track1';
+      playMusicTrack(selectedMusic);
+    } else {
+      stopMusic();
+    }
+
+    // Cleanup: stop music when test mode or playing state ends
+    return () => {
+      if (!isTestMode && gameState !== GameState.PLAYING) {
+        stopMusic();
+      }
+    };
+  }, [gameState, isTestMode, levelData?.music, attempt]);
+
   // Input Event Listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp') {
+      const jumpBtn = jumpButton ?? 0;
+      if (typeof jumpBtn === 'string' && e.code === jumpBtn) {
+        e.preventDefault();
+        isHoldingJump.current = true;
+        orbPressed.current = true;
+        if (player.current.onPlatform) {
+          jumpQueued.current = true;
+        }
+      } else if (e.code === 'Space' || e.code === 'ArrowUp') {
         e.preventDefault();
         isHoldingJump.current = true;
         orbPressed.current = true;
@@ -146,6 +173,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
       }
       if (e.code === 'Escape') {
+        stopMusic();
         if (gameState === GameState.PLAYING) {
           setGameState(GameState.LEVEL_SELECT);
         }
@@ -153,7 +181,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
     
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp') {
+      const jumpBtn = jumpButton ?? 0;
+      if (typeof jumpBtn === 'string' && e.code === jumpBtn) {
+        isHoldingJump.current = false;
+        orbPressed.current = false;
+      } else if (e.code === 'Space' || e.code === 'ArrowUp') {
         isHoldingJump.current = false;
         orbPressed.current = false;
       }
@@ -161,7 +193,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const handleMouseDown = (e: MouseEvent) => {
       const jumpBtn = jumpButton ?? 0;
-      if (e.button === jumpBtn) {
+      if (typeof jumpBtn === 'number' && e.button === jumpBtn) {
         isHoldingJump.current = true;
         jumpQueued.current = true;
         orbPressed.current = true;
@@ -223,6 +255,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     player.current.isDead = true;
     spawnParticles(player.current.x + PLAYER_SIZE / 2, player.current.y + PLAYER_SIZE / 2, playerColor);
 
+    // Ekranı 0.37 saniye dondur
+    setIsFrozen(true);
+    
     if (canvasRef.current) {
       const shake = () => {
         if (!canvasRef.current) return;
@@ -237,8 +272,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       setTimeout(shake, 100);
     }
 
-    // ref üzerinden çağır — her zaman güncel App.tsx fonksiyonunu çağırır
-    onDeathRef.current();
+    // 0.37 saniye sonra respawn ol
+    setTimeout(() => {
+      setIsFrozen(false);
+      // ref üzerinden çağır — her zaman güncel App.tsx fonksiyonunu çağırır
+      onDeathRef.current();
+    }, 370);
   };
 
   const draw = (ctx: CanvasRenderingContext2D) => {
@@ -727,7 +766,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (p.y <= ceilingY) {
         p.y = ceilingY;
         p.dy = 0;
-        handleDeath();
       }
     }
 
@@ -850,6 +888,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     // Win/Death Bounds
     if (p.x > levelData.length) {
       hasWon.current = true;
+      stopMusic();
       // FIX: ref üzerinden çağır — her zaman App.tsx'teki güncel handleLevelComplete'i çağırır
       onWinRef.current();
     }
@@ -897,7 +936,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const loop = (time: number) => {
       const deltaTime = Math.min((time - lastTime) / 16.67, 2.0);
       lastTime = time;
-      updatePhysics(deltaTime);
+      if (!isFrozen) {
+        updatePhysics(deltaTime);
+      }
       draw(ctx);
       frameId.current = requestAnimationFrame(loop);
     };
@@ -906,7 +947,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => {
       if (frameId.current) cancelAnimationFrame(frameId.current);
     };
-  }, [gameState, isTestMode, isInitialized, levelData]);
+  }, [gameState, isTestMode, isInitialized, levelData, isFrozen]);
 
   const containerClasses = (gameState === GameState.PLAYING || isTestMode)
     ? "fixed inset-0 w-screen h-screen z-50 bg-[#0f172a] flex items-center justify-center cursor-none"
