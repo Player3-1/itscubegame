@@ -35,10 +35,10 @@ const getDifficultyStars = (difficulty: string) => {
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.LOGIN);
-const [showMobilePrompt, setShowMobilePrompt] = useState(true);
+const [showMobilePrompt, setShowMobilePrompt] = useState(false);
   const [isMobileMode, setIsMobileMode] = useState(() => {
     const saved = localStorage.getItem('nd_is_mobile');
-    return saved ? JSON.parse(saved) : false;
+    return saved ? JSON.parse(saved) : true;
   });
 
   React.useEffect(() => {

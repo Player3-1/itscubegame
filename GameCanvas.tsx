@@ -49,7 +49,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => { onWinRef.current = onWin; }, [onWin]);
   useEffect(() => { onDeathRef.current = onDeath; }, [onDeath]);
   
-  const player = useRef({\n    x: 100,\n    y: GROUND_HEIGHT - PLAYER_SIZE,\n    dy: 0,\n    rotation: 0,\n    isJumping: false,\n    isDead: false,\n    onPlatform: false,\n    gravityDirection: 1,\n    currentSpeed: BASE_SPEED,\n    jumpsAvailable: 0,\n    inWave: false,\n    inJetpack: false,\n    isCube: false,\n    wasInJetpackPortal: false,\n    wasInCubePortal: false,\n    orbCooldown: 0,\n  });
+  const player = useRef({
+    x: 100,
+    y: GROUND_HEIGHT - PLAYER_SIZE,
+    dy: 0,
+    rotation: 0,
+    isJumping: false,
+    isDead: false,
+    onPlatform: false,
+    gravityDirection: 1,
+    currentSpeed: BASE_SPEED,
+    jumpsAvailable: 0,
+    inWave: false,
+    inJetpack: false,
+    isCube: false,
+    wasInJetpackPortal: false,
+    wasInCubePortal: false,
+    orbCooldown: 0,
+  });
   
   const obstacles = useRef<Obstacle[]>([]);
   const particles = useRef<Particle[]>([]);
@@ -85,7 +102,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
       obstacles.current = JSON.parse(JSON.stringify(levelData.obstacles));
       const startX = isTestMode ? 100 : levelData.obstacles.length > 0 ? Math.min(...levelData.obstacles.map(o => o.x)) - 200 : 100;
-      player.current = {\n        x: startX,\n        y: GROUND_HEIGHT - PLAYER_SIZE,\n        dy: 0,\n        rotation: 0,\n        isJumping: false,\n        isDead: false,\n        onPlatform: false,\n        gravityDirection: 1,\n        currentSpeed: BASE_SPEED,\n        jumpsAvailable: 0,\n        inJetpack: false,\n        isCube: false,\n        wasInJetpackPortal: false,\n        wasInCubePortal: false,\n        inWave: false,\n        orbCooldown: 0\n      };
+      player.current = {
+        x: startX,
+        y: GROUND_HEIGHT - PLAYER_SIZE,
+        dy: 0,
+        rotation: 0,
+        isJumping: false,
+        isDead: false,
+        onPlatform: false,
+        gravityDirection: 1,
+        currentSpeed: BASE_SPEED,
+        jumpsAvailable: 0,
+        inJetpack: false,
+        isCube: false,
+        wasInJetpackPortal: false,
+        wasInCubePortal: false,
+        inWave: false,
+        orbCooldown: 0
+      };
       cameraX.current = 0;
       hasWon.current = false;
       particles.current = [];
@@ -633,7 +667,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   // Physics Update
-  const updatePhysics = (deltaTime: number) => {\n    if (!isInitialized || player.current.isDead || hasWon.current) return;\n\n    const p = player.current;\n\n    // Orb cooldown tick\n    p.orbCooldown = Math.max(0, p.orbCooldown - deltaTime);\n\n    // Trail
+  const updatePhysics = (deltaTime: number) => {
+    if (!isInitialized || player.current.isDead || hasWon.current) return;
+
+    const p = player.current;
+
+    // Orb cooldown tick
+    p.orbCooldown = Math.max(0, p.orbCooldown - deltaTime);
+
+    // Trail
     if (p.inWave) {
       trail.current.push({ x: p.x + PLAYER_SIZE / 2, y: p.y + PLAYER_SIZE / 2, life: 0.9 });
       if (trail.current.length > 26) trail.current.shift();
@@ -956,3 +998,4 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     </div>
   );
 };
+
