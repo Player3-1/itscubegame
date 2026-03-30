@@ -1,6 +1,6 @@
 # Cube Dash Updates TODO
 
-**Status: 1/2 complete**
+**Status: 2/2 complete ✓**
 
 ## Tasks:
 - [x] Update App.tsx version display from "1.4.2" → "1.5" 

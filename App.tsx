@@ -35,10 +35,7 @@ const getDifficultyStars = (difficulty: string) => {
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.LOGIN);
-  const [showMobilePrompt, setShowMobilePrompt] = useState(() => {
-    const saved = localStorage.getItem('nd_mobile_prompt_shown');
-    return !saved;
-  });
+const [showMobilePrompt, setShowMobilePrompt] = useState(true);
   const [isMobileMode, setIsMobileMode] = useState(() => {
     const saved = localStorage.getItem('nd_is_mobile');
     return saved ? JSON.parse(saved) : false;
@@ -1085,8 +1082,7 @@ const App: React.FC = () => {
             <button
               onClick={() => {
                 setIsMobileMode(true);
-                localStorage.setItem('nd_is_mobile', 'true');
-                localStorage.setItem('nd_mobile_prompt_shown', 'true');
+localStorage.setItem('nd_is_mobile', 'true');
                 setShowMobilePrompt(false);
               }}
               className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-bold text-white"
@@ -1096,8 +1092,7 @@ const App: React.FC = () => {
             <button
               onClick={() => {
                 setIsMobileMode(false);
-                localStorage.setItem('nd_is_mobile', 'false');
-                localStorage.setItem('nd_mobile_prompt_shown', 'true');
+localStorage.setItem('nd_is_mobile', 'false');
                 setShowMobilePrompt(false);
               }}
               className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-bold text-white"
