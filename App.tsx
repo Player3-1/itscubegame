@@ -12,23 +12,25 @@ import { playTrack, stop as stopMusic, setVolume } from './music';
 const DEFAULT_LEVELS: LevelMetadata[] = [];
 
 const getDifficultyColor = (difficulty: string) => {
-  switch (difficulty) {
-    case 'Easy': return '#4ade80';
-    case 'Normal': return '#facc15';
-    case 'Hard': return '#f87171';
-    case 'Insane': return '#a855f7';
-    case 'Extreme': return '#ec4899';
+  const normalized = difficulty.toLowerCase();
+  switch (normalized) {
+    case 'easy': return '#4ade80';
+    case 'normal': return '#facc15';
+    case 'hard': return '#f87171';
+    case 'insane': return '#a855f7';
+    case 'extreme': return '#ec4899';
     default: return '#6b7280';
   }
 };
 
 const getDifficultyStars = (difficulty: string) => {
-  switch (difficulty) {
-    case 'Easy': return 2;
-    case 'Normal': return 4;
-    case 'Hard': return 6;
-    case 'Insane': return 8;
-    case 'Extreme': return 12;
+  const normalized = difficulty.toLowerCase();
+  switch (normalized) {
+    case 'easy': return 2;
+    case 'normal': return 4;
+    case 'hard': return 6;
+    case 'insane': return 8;
+    case 'extreme': return 12;
     default: return 0;
   }
 };
@@ -150,7 +152,7 @@ const [showMobilePrompt, setShowMobilePrompt] = useState(false);
       name: draft.name,
       author: draft.author,
       difficulty: 'unlisted',
-      stars: 0,
+      stars: 0, // Will be set when admin assigns difficulty
       verifiedBy,
       data: draft.data,
       plays: 0,
@@ -700,44 +702,69 @@ const [showMobilePrompt, setShowMobilePrompt] = useState(false);
     })();
   };
 
-  const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty'], starRating?: number) => {
+  const updateDifficulty = (levelId: string, diff: LevelMetadata['difficulty'], starRating?: number, isAdminLevel?: boolean) => {
     if (!user?.isAdmin) return;
 
-    const baseStarsMap = { unlisted: 0, easy: 2, normal: 4, hard: 6, insane: 8, extreme: 12 };
+    const baseStarsMap: Record<string, number> = { unlisted: 0, easy: 2, normal: 4, hard: 6, insane: 8, extreme: 12 };
     let calculatedStars = baseStarsMap[diff] || 0;
 
-    if (diff !== 'unlisted' && starRating !== undefined) {
-      if (starRating === 0 || starRating === 1) {
-        calculatedStars -= 1;
-      } else if (starRating === 2) {
-        // Normal, no change
-      } else if (starRating === 3) {
-        calculatedStars += 1;
-      } else if (diff === 'extreme' && starRating === 4) {
-        calculatedStars = 15;
+    if (diff !== 'unlisted') {
+      if (starRating !== undefined) {
+        // starRating: 1 = base-1, 2 = base, 3 = base+1, 4 = 15 (extreme only)
+        if (starRating === 1) {
+          calculatedStars = calculatedStars - 1;
+        } else if (starRating === 2) {
+          // Keep base stars (calculatedStars already set)
+        } else if (starRating === 3) {
+          calculatedStars = calculatedStars + 1;
+        } else if (starRating === 4 && diff === 'extreme') {
+          calculatedStars = 15;
+        }
       }
       calculatedStars = Math.max(0, calculatedStars);
     }
 
-    const updatedLevels = levels.map(l => {
-      if (l.id === levelId) {
-        return { ...l, difficulty: diff, stars: calculatedStars };
-      }
-      return l;
-    });
-    setLevels(updatedLevels);
-    localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
-
-    const updated = updatedLevels.find(l => l.id === levelId);
-    if (updated) {
-      (async () => {
-        try {
-          const ref = doc(db, 'levels', levelId);
-          await updateDoc(ref, { difficulty: updated.difficulty, stars: updated.stars });
-        } catch (err) {
-          console.error('Firestore update difficulty error:', err);
+    if (isAdminLevel) {
+      const updatedAdminLevels = adminLevels.map(l => {
+        if (l.id === levelId) {
+          return { ...l, difficulty: diff, stars: calculatedStars };
         }
-      })();
+        return l;
+      });
+      setAdminLevels(updatedAdminLevels);
+      localStorage.setItem('nd_admin_levels', JSON.stringify(updatedAdminLevels));
+      const updated = updatedAdminLevels.find(l => l.id === levelId);
+      if (updated) {
+        (async () => {
+          try {
+            const ref = doc(db, 'admin_levels', levelId);
+            await updateDoc(ref, { difficulty: updated.difficulty, stars: updated.stars });
+          } catch (err) {
+            console.error('Firestore update admin level difficulty error:', err);
+          }
+        })();
+      }
+    } else {
+      const updatedLevels = levels.map(l => {
+        if (l.id === levelId) {
+          return { ...l, difficulty: diff, stars: calculatedStars };
+        }
+        return l;
+      });
+      setLevels(updatedLevels);
+      localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
+
+      const updated = updatedLevels.find(l => l.id === levelId);
+      if (updated) {
+        (async () => {
+          try {
+            const ref = doc(db, 'levels', levelId);
+            await updateDoc(ref, { difficulty: updated.difficulty, stars: updated.stars });
+          } catch (err) {
+            console.error('Firestore update difficulty error:', err);
+          }
+        })();
+      }
     }
   };
 
@@ -1882,6 +1909,11 @@ Version: 1.5
                         <h3 className="text-lg sm:text-xl font-bold font-orbitron">
                           {levelView === 'hard' && <span className="text-red-500 font-bold">#{displayedLevels.indexOf(level) + 1} </span>}
                           {level.name} <span className="text-xs text-slate-400 font-mono ml-1 sm:ml-2">#{level.levelNumber}</span>
+                          {user?.highestProgress?.[level.id] !== undefined && (
+                            <span className={`text-xs font-bold ml-2 ${user.highestProgress[level.id] === 100 ? 'text-green-400' : 'text-cyan-400'}`}>
+                              {user.highestProgress[level.id] === 100 ? 'completed' : `${user.highestProgress[level.id]}%`}
+                            </span>
+                          )}
                         </h3>
                         {isCompleted && (
                           <div className="text-green-500 text-xs border border-green-500 px-2 py-0.5 rounded font-bold flex items-center gap-1 w-fit">
@@ -1898,11 +1930,6 @@ Version: 1.5
                         >
                           <Heart size={12} fill={isLiked ? "currentColor" : "none"} /> {level.likes || 0}
                         </button>
-                        {user?.highestProgress?.[level.id] && !isCompleted && (
-                          <span className="flex items-center gap-1 text-cyan-400">
-                            Best: {user.highestProgress[level.id]}%
-                          </span>
-                        )}
                       </div>
                     </div>
 
@@ -1911,9 +1938,9 @@ Version: 1.5
                         <div className={`font-black uppercase text-sm sm:text-base ${difficultyColors[level.difficulty] || 'text-white'}`}>
                           {level.difficulty === 'Unlisted' ? 'Unrated' : level.difficulty}
                         </div>
-                        {level.stars > 0 && (
+                        {level.difficulty !== 'Unlisted' && (
                           <div className="text-yellow-400 text-xs sm:text-sm font-bold flex justify-center items-center gap-1">
-                            {level.stars} <Star size={10} className="sm:w-3 sm:h-3" fill="currentColor" />
+                            {level.stars > 0 ? level.stars : getDifficultyStars(level.difficulty.toLowerCase())} <Star size={10} className="sm:w-3 sm:h-3" fill="currentColor" />
                           </div>
                         )}
                       </div>
@@ -1923,7 +1950,7 @@ Version: 1.5
                           <select
                             className="bg-black text-xs p-1 rounded border border-slate-600 text-white"
                             value={level.difficulty}
-                            onChange={(e) => updateDifficulty(level.id, e.target.value as any)}
+                            onChange={(e) => updateDifficulty(level.id, e.target.value as any, undefined, false)}
                           >
                             <option value="Unlisted">Unlisted</option>
                             <option value="Easy">Easy (2*)</option>
@@ -1933,16 +1960,43 @@ Version: 1.5
                             <option value="Extreme">Extreme (12*)</option>
                           </select>
                           {level.difficulty !== 'Unlisted' && (
+                            <div className="text-xs text-yellow-400 mt-1">
+                              {getDifficultyStars(level.difficulty.toLowerCase())} ⭐
+                            </div>
+                          )}
+                          {level.difficulty !== 'Unlisted' && (
                             <div className="flex gap-0.5">
-                              {[1, 2, 3, ...(level.difficulty === 'Extreme' ? [4] : [])].map(star => (
-                                <button
-                                  key={star}
-                                  onClick={() => updateDifficulty(level.id, level.difficulty, star)}
-                                  className={`w-4 h-4 text-xs ${level.stars >= (level.difficulty === 'Extreme' && star === 4 ? 15 : (level.difficulty === 'Easy' ? 2 : level.difficulty === 'Normal' ? 4 : level.difficulty === 'Hard' ? 6 : level.difficulty === 'Insane' ? 8 : 12) + (star === 1 || star === 0 ? -1 : star === 3 ? 1 : 0)) ? 'text-yellow-400' : 'text-slate-600'} hover:text-yellow-300`}
-                                >
-                                  ★
-                                </button>
-                              ))}
+                              {[1, 2, 3, ...(level.difficulty === 'Extreme' ? [4] : [])].map(star => {
+                                const baseStars = getDifficultyStars(level.difficulty.toLowerCase());
+                                const expectedStars = star === 4 ? 15 : (star === 1 ? baseStars - 1 : star === 2 ? baseStars : baseStars + 1);
+                                const currentStars = level.stars > 0 ? level.stars : baseStars;
+                                const isActive = currentStars === expectedStars;
+                                return (
+                                  <button
+                                    key={star}
+                                    onClick={() => {
+                                      const newStars = expectedStars;
+                                      const updatedLevels = levels.map(l =>
+                                        l.id === level.id ? { ...l, stars: newStars } : l
+                                      );
+                                      setLevels(updatedLevels);
+                                      localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
+                                      // Save to Firestore
+                                      (async () => {
+                                        try {
+                                          const ref = doc(db, 'levels', level.id);
+                                          await updateDoc(ref, { stars: newStars });
+                                        } catch (err) {
+                                          console.error('Firestore update stars error:', err);
+                                        }
+                                      })();
+                                    }}
+                                    className={`w-4 h-4 text-xs ${isActive ? 'text-yellow-400' : 'text-slate-600'} hover:text-yellow-300`}
+                                  >
+                                    ★
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
                           <div className="flex gap-1 mt-1">
@@ -2056,11 +2110,18 @@ Version: 1.5
             )}
             {adminLevels.filter(l => l.isAdmin).map((level) => (
               <div key={level.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg">{level.name}</h3>
+                <div className="flex items-center justify-between mb-3 overflow-hidden">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-lg truncate">
+                      {level.name}
+                      {user?.highestProgress?.[level.id] !== undefined && (
+                        <span className={`text-xs font-bold ml-2 ${user.highestProgress[level.id] === 100 ? 'text-green-400' : 'text-cyan-400'}`}>
+                          {user.highestProgress[level.id] === 100 ? 'completed' : `${user.highestProgress[level.id]}%`}
+                        </span>
+                      )}
+                    </h3>
                     <p className="text-sm text-slate-400">Level #{level.levelNumber}</p>
-                    <p className="text-xs text-slate-500 mt-1 capitalize">
+                    <p className="text-xs text-slate-500 mt-1 capitalize truncate">
                       Difficulty: <span className={`font-medium 
                         ${level.difficulty === 'easy' ? 'text-green-400' : 
                           level.difficulty === 'normal' ? 'text-yellow-400' : 
@@ -2068,7 +2129,7 @@ Version: 1.5
                           level.difficulty === 'insane' ? 'text-purple-500' : 
                           level.difficulty === 'extreme' ? 'text-pink-500' : 
                           'text-slate-500'}`}>{(level.difficulty || 'normal')}</span> • 
-                      <span className="text-yellow-400 font-bold ml-1">{level.stars || 0}⭐</span>
+                      <span className="text-yellow-400 font-bold ml-1">{level.stars > 0 ? level.stars : getDifficultyStars(level.difficulty || 'normal')}⭐</span>
                     </p>
                   </div>
                 </div>
@@ -2109,25 +2170,7 @@ Version: 1.5
                       <label className="text-sm text-slate-400 block mb-2">Difficulty</label>
                       <select
                         value={level.difficulty || 'normal'}
-                        onChange={(e) => {
-                          const updated = adminLevels.map(l =>
-                            l.id === level.id ? { ...l, difficulty: e.target.value as any } : l
-                          );
-                          setAdminLevels(updated);
-                          localStorage.setItem('nd_admin_levels', JSON.stringify(updated));
-                          // Save to Firestore
-                          (async () => {
-                            try {
-                              const updatedLevel = updated.find(l => l.id === level.id);
-                              if (updatedLevel) {
-                                const ref = doc(db, 'admin_levels', updatedLevel.id);
-                                await setDoc(ref, updatedLevel);
-                              }
-                            } catch (err) {
-                              console.error('Firestore save admin level difficulty error:', err);
-                            }
-                          })();
-                        }}
+                        onChange={(e) => updateDifficulty(level.id, e.target.value as any, undefined, true)}
                         className="w-full bg-black text-white px-3 py-2 rounded border border-slate-600"
                       >
                         <option value="easy">Easy</option>
@@ -2136,6 +2179,9 @@ Version: 1.5
                         <option value="insane">Insane</option>
                         <option value="extreme">Extreme</option>
                       </select>
+                      <div className="text-xs text-yellow-400 mt-1">
+                        Stars: {getDifficultyStars(level.difficulty || 'normal')} ⭐
+                      </div>
                     </div>
 
                     <div className="flex gap-2">
@@ -2169,6 +2215,44 @@ Version: 1.5
                       </button>
                       <button
                         onClick={() => {
+                          if (confirm(`Publish "${level.name}" to main levels?`)) {
+                            // Add to main levels
+                            const maxNum = levels.reduce((m, l) => Math.max(m, l.levelNumber || 0), 0);
+                            const newLevelNumber = maxNum + 1;
+                            const publishedLevel: LevelMetadata = {
+                              id: level.id,
+                              levelNumber: newLevelNumber,
+                              name: level.name,
+                              author: 'dgoa',
+                              difficulty: level.difficulty || 'normal',
+                              stars: level.stars || 0,
+                              isAdmin: true,
+                              isChallenge: level.isChallenge,
+                              data: level.data,
+                              plays: 0,
+                              likes: 0
+                            };
+                            const updatedLevels = [...levels.filter(l => l.id !== publishedLevel.id), publishedLevel];
+                            setLevels(updatedLevels);
+                            localStorage.setItem('nd_levels', JSON.stringify(updatedLevels));
+                            // Save to Firestore
+                            (async () => {
+                              try {
+                                const ref = doc(db, 'levels', publishedLevel.id);
+                                await setDoc(ref, publishedLevel);
+                                console.log('Admin level published to main levels:', publishedLevel.name);
+                              } catch (err) {
+                                console.error('Firestore publish admin level error:', err);
+                              }
+                            })();
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 rounded font-bold text-sm bg-green-600 hover:bg-green-500 text-white"
+                      >
+                        PUBLISH
+                      </button>
+                      <button
+                        onClick={() => {
                           if (confirm(`Delete "${level.name}"?`)) {
                             const updated = adminLevels.filter(l => l.id !== level.id);
                             setAdminLevels(updated);
@@ -2185,7 +2269,7 @@ Version: 1.5
                             })();
                           }
                         }}
-                        className="px-3 py-2 rounded font-bold text-sm bg-red-700 hover:bg-red-600 text-white"
+                        className="px-2 py-1 rounded font-bold text-xs bg-red-700 hover:bg-red-600 text-white"
                       >
                         DELETE
                       </button>
@@ -2200,14 +2284,14 @@ Version: 1.5
                       setCurrentAttempt(0);
                       setGameState(GameState.PLAYING);
                     }}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold"
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded font-bold text-sm"
                   >
                     PLAY
                   </button>
                   {user && (
                     <button
                       onClick={() => copyLevel(level)}
-                      className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded font-bold text-white"
+                      className="bg-purple-600 hover:bg-purple-500 px-2 py-1 rounded font-bold text-white text-sm"
                       title="Copy this level"
                     >
                       📋
@@ -2308,7 +2392,13 @@ Version: 1.5
     // Menüye dönünce userRef'i state'e sync et — yıldız sayısı hemen güncellensin
     const goToMenu = () => {
       if (userRef.current) setUser(userRef.current);
-      setGameState(GameState.LEVEL_SELECT);
+      // If current level is an admin level, go back to admin levels page
+      const isAdminLevel = adminLevels.some(l => l.id === currentLevel.id);
+      if (isAdminLevel) {
+        setGameState(GameState.ADMIN_LEVELS);
+      } else {
+        setGameState(GameState.LEVEL_SELECT);
+      }
     };
 
     return (
@@ -2328,6 +2418,12 @@ Version: 1.5
             </div>
             <span className="absolute mt-6 font-mono font-bold text-lg sm:text-xl">{score}%</span>
           </div>
+
+          {user && currentLevel && user.highestProgress?.[currentLevel.id] !== undefined && (
+            <div className="text-cyan-400 text-sm sm:text-base font-bold mb-4">
+              Best: {user.highestProgress[currentLevel.id]}%
+            </div>
+          )}
 
           {isWin && starsEarned > 0 && (
             <div className="flex justify-center items-center gap-2 text-yellow-400 text-lg sm:text-2xl font-bold mb-6 sm:mb-8 bg-yellow-900/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
